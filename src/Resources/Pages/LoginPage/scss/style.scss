@@ -1,0 +1,40 @@
+/*.main_container{
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  align-items: center;
+}*/
+
+.main_container{
+  display: grid;
+  height: 100%;
+  grid-template-columns: 30rem;
+  grid-template-rows: 25rem;
+  justify-content: center;
+  align-content: center;
+}
+
+.form_container{
+  background-color: #232323;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 20px;
+  justify-content: center;
+  align-items: center;
+}
+
+.login_logo{
+  width: 60px;
+}
+
+.main_form{
+  width: 70%;
+}
+
+/*.form_container{
+  width: 200px;
+  height: 200px;
+  background-color: green;
+}*/
+

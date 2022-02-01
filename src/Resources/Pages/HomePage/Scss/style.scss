@@ -1,0 +1,108 @@
+.swiper_main_height{
+    height: 100%;
+}
+
+.swiper_content_center{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.next_btn{
+    right: 5vw;
+    bottom: 20px;
+    position: relative;
+     &:after{
+         content: "";
+         display: block;
+         width: 5px;
+         height: 5px;
+         position: absolute;
+         border-top: 2px solid whitesmoke;
+         border-right: 2px solid whitesmoke;
+         top: 50%;
+         left: 82%;
+         transform: translate(-50% , -50%) rotate(45deg);
+         transition: border-color 0.6s ease;
+     }
+}
+
+.previous_btn{
+    left: 5vw;
+    bottom: 20px;
+    &:after{
+        content: "";
+        display: block;
+        width: 5px;
+        height: 5px;
+        position: absolute;
+        border-top: 2px solid whitesmoke;
+        border-left: 2px solid whitesmoke;
+        top: 50%;
+        left: 10%;
+        transform: translate(-50% , -50%) rotate(-45deg);
+        transition: border-color 0.6s ease;
+    }
+}
+
+.swiper-button-next{
+
+    color: hsl(40, 85%, 68%) !important;
+    -webkit-tap-highlight-color: transparent !important;
+
+    &:after{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0 2rem;
+        height: 100vh;
+        background: transparent;
+        transition: background 0.6s ease;
+    }
+
+    &:hover:after{
+        background-image: linear-gradient(to right, rgba(255,0,0,0), rgb(21, 21, 21));
+    }
+}
+
+.swiper-button-prev{
+    color: hsl(40, 85%, 68%)  !important;
+    -webkit-tap-highlight-color: transparent !important;
+
+    &:after{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0 2rem;
+        height: 100vh;
+        background: transparent;
+        transition: background 0.6s ease;
+    }
+    &:hover:after{
+        background-image: linear-gradient(to left, rgba(255,0,0,0), rgb(21, 21, 21));
+    }
+}
+
+/*.swiper-pagination{ for mobile later
+    display: none;
+}*/
+
+@media only screen and (max-width: 800px){
+    .swiper-pagination , .swiper-button-next , .swiper-button-prev {
+        display: none !important;
+    }
+}
+
+
+.swiper-pagination-bullet{
+    background-color: hsl(40, 85%, 68%) !important;
+}
+
+.image_opacity{
+    opacity: 0;
+}
+
+
+
+
+

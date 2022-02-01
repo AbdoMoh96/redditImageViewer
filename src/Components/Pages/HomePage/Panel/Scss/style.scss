@@ -1,0 +1,107 @@
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap');
+
+@mixin backgroundImg($path){
+  background-image: url($path);
+  /*background-image: url($path);*/
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
+
+.panelShow{
+  bottom: 0 !important;
+}
+
+.panelHide{
+  bottom: -10vh !important;
+
+  @media only screen and (max-width: 800px){
+    bottom: -100vh !important;
+  }
+}
+
+/*.genre_container{
+ display: flex;
+ justify-content: space-evenly;
+ align-items: center;
+ height: 80%;
+
+  @media only screen and (max-width: 800px){
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    row-gap: 20px;
+    height: 90%;
+  }
+}*/
+
+.btn_container{
+  display: flex;
+  padding: 0 20px;
+  justify-content: space-between;
+  align-items: center;
+  height: 20%;
+
+  @media only screen and (max-width: 800px){
+    height: 10%;
+  }
+}
+
+.next_btn_panel{
+  position: relative;
+  &:after{
+    content: "";
+    display: block;
+    width: 5px;
+    height: 5px;
+    position: absolute;
+    border-top: 2px solid whitesmoke;
+    border-right: 2px solid whitesmoke;
+    top: 50%;
+    left: 82%;
+    transform: translate(-50% , -50%) rotate(45deg);
+    transition: border-color 0.6s ease;
+  }
+}
+
+.previous_btn_panel{
+  position: relative;
+  &:after{
+    content: "";
+    display: block;
+    width: 5px;
+    height: 5px;
+    position: absolute;
+    border-top: 2px solid whitesmoke;
+    border-left: 2px solid whitesmoke;
+    top: 50%;
+    left: 10%;
+    transform: translate(-50% , -50%) rotate(-45deg);
+    transition: border-color 0.6s ease;
+  }
+}
+
+/*
+.card_media{
+  @include backgroundImg('../../../../../Resources/Public/Panel/images/media.jpg');
+  transition: background 0.6s ease;
+  &:hover{
+
+  }
+}
+.card_nsfw{
+  @include backgroundImg('../../../../../Resources/Public/Panel/images/nsfw.jpg');
+}
+.card_yuri{
+  @include backgroundImg('../../../../../Resources/Public/Panel/images/yuri.jpg');
+}
+.card_real{
+  @include backgroundImg('../../../../../Resources/Public/Panel/images/real.jpg');
+}
+
+.card_selected{
+  section{
+    background-color: transparent !important;
+    opacity: 1 !important;
+  }
+}*/
