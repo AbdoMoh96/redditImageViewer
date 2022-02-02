@@ -4,13 +4,18 @@ import './Scss/style.scss';
 import axios from "axios";
 import '../../../../Resources/Public/Scss/bulma/bulma.sass';
 import imagesGetter from "../../../../Helpers/imagesGetter";
-
+import swal from "sweetalert";
 
 const Panel = ({imagesUpdate , loader}) => {
 
     const[classes , updateClasses] = useState('panelHide');
     const[text , textUpdate] = useState('');
-    const[count , countUpdate] = useState(1);
+    const[status , statusUpdate] = useState({
+        next: '',
+        previous: ''
+    });
+    const[count , countUpdate] = useState(0);
+
 
     useEffect(() => {
     } , [])
@@ -23,32 +28,73 @@ const Panel = ({imagesUpdate , loader}) => {
         }
     }
 
-    const getImages = async (action) => {
-        if(action === 'start'){
+    const getImages = async () => {
+        try{
             loader(true);
-            let res = await axios.get(
-                `https://www.reddit.com/r/${text}/new.json?limit=100`
-            ).catch(() => alert("shit went wrong!!!"));
+            let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100`);
             let urls = imagesGetter(res.data.data.children);
             imagesUpdate(state => urls);
+            statusUpdate({...status ,
+                next: urls[urls.length - 1].id
+            });
             loader(false);
-        }else if(action === 'next'){
-            countUpdate(state => state + 1)
-            console.log('next')
-        }else if(action === 'previous'){
-            countUpdate(state => state - 1)
-            console.log('previous')
+        }catch{
+           await swal({
+               title: "subreddit not found or subreddit has no images",
+           });
+            loader(false);
+        }
+    };
+
+    const getNextImages = async () => {
+        try {
+            countUpdate(state => state + 1);
+            loader(true);
+            let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`);
+            let urls = imagesGetter(res.data.data.children);
+            imagesUpdate(state => urls);
+            statusUpdate({
+                ...status,
+                next: urls[urls.length - 1].id,
+                previous: urls[0].id
+            });
+            loader(false);
+        }catch{
+            await swal({
+                title: "subreddit not found or subreddit has no images",
+            });
+            loader(false);
+        }
+    };
+
+    const getPreImages = async () => {
+        try {
+            countUpdate(state => state - 1);
+            loader(true);
+            let imageId = status.previous;
+            let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`);
+            let urls = imagesGetter(res.data.data.children);
+            imagesUpdate(state => urls);
+            statusUpdate({
+                ...status,
+                next: urls[urls.length - 1].id,
+                previous: urls[0].id
+            });
+            loader(false);
+        }catch{
+            await swal({
+                title: "subreddit not found or subreddit has no images",
+            });
+            loader(false);
         }
     };
 
     return(
         <Section className={classes}>
-
-
                 <Button
                     className={'previous_btn_panel'}
-                    disabled={count <= 1}
-                    onClick={() => getImages('previous')}
+                    disabled={count <= 0}
+                    onClick={() => getPreImages()}
                 >
                     previous stack
                 </Button>
@@ -61,14 +107,14 @@ const Panel = ({imagesUpdate , loader}) => {
                           placeholder="add subreddit's name"
                           onChange={(e) => textUpdate(state => e.target.value)}
                           value={text}
-                          onKeyPress={(e) => e.key === 'Enter' && getImages('start')}
+                          onKeyPress={(e) => e.key === 'Enter' && getImages()}
                     />
                </p>
             </div>
 
                 <Button
                     className={'next_btn_panel'}
-                    onClick={() => getImages('next')}
+                    onClick={() => getNextImages()}
                 >
                     next stack
                 </Button>
