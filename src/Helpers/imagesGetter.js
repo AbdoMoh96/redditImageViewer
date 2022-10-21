@@ -14,7 +14,7 @@ const imagesGetter = (images) => {
                    image = {
                        id: element.data.name,
                        title: element.data.title,
-                       url: element.data.preview.images[0].source.url.replace("amp;", ""),
+                       url: element.data.url_overridden_by_dest
                    };
                }
             }
