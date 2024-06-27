@@ -31,7 +31,7 @@ const Panel = ({imagesUpdate , loader}) => {
     const getImages = async () => {
         try{
             loader(true);
-            let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100`);
+            let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100`, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' }});
             let urls = imagesGetter(res.data.data.children);
             imagesUpdate(state => urls);
             statusUpdate({...status ,
