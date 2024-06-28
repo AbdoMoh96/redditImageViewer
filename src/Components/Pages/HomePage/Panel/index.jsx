@@ -52,7 +52,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const getImages = async () => {
     try {
       loader(true);
-      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100`, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' }});
+      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100`);
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
       setImageUrls((state) => urls);
@@ -71,7 +71,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     try {
       countUpdate((state) => state + 1);
       loader(true);
-      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' }});
+      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`);
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
       setImageUrls((state) => urls);
@@ -95,7 +95,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       countUpdate((state) => state - 1);
       loader(true);
       let imageId = status.previous;
-      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' }});
+      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`);
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
       setImageUrls((state) => urls);
