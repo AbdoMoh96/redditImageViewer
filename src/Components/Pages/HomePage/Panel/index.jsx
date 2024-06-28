@@ -6,7 +6,7 @@ import '../../../../Resources/Public/Scss/bulma/bulma.sass';
 import imagesGetter from "../../../../Helpers/imagesGetter";
 import swal from "sweetalert";
 
-const Panel = ({imagesUpdate , loader}) => {
+const Panel = ({imagesUpdate , loader, activeSlide, slideToUpdate}) => {
 
     const[classes , updateClasses] = useState('panelHide');
     const[text , textUpdate] = useState('');
@@ -23,6 +23,7 @@ const Panel = ({imagesUpdate , loader}) => {
            searchText : text,
            currentStatus : status,
            currentCount : count,
+           currentActiveSlide : activeSlide,
            currentImageUrls : imageUrls
         }));
     }
@@ -32,6 +33,7 @@ const Panel = ({imagesUpdate , loader}) => {
         textUpdate(data.searchText);
         statusUpdate(data.currentStatus);
         imagesUpdate(state => data.currentImageUrls);
+        slideToUpdate(data.currentActiveSlide);
         countUpdate(data.currentCount);
     }
 
@@ -58,6 +60,7 @@ const Panel = ({imagesUpdate , loader}) => {
             let urls = imagesGetter(res.data.data.children);
             imagesUpdate(state => urls);
             setImageUrls(state => urls);
+            slideToUpdate(0);
             statusUpdate({...status ,
                 next: urls[urls.length - 1].id
             });
@@ -78,6 +81,7 @@ const Panel = ({imagesUpdate , loader}) => {
             let urls = imagesGetter(res.data.data.children);
             imagesUpdate(state => urls);
             setImageUrls(state => urls);
+            slideToUpdate(0);
             statusUpdate({
                 ...status,
                 next: urls[urls.length - 1].id,
@@ -101,6 +105,7 @@ const Panel = ({imagesUpdate , loader}) => {
             let urls = imagesGetter(res.data.data.children);
             imagesUpdate(state => urls);
             setImageUrls(state => urls);
+            slideToUpdate(0);
             statusUpdate({
                 ...status,
                 next: urls[urls.length - 1].id,

@@ -9,6 +9,8 @@ import Panel from "../Components/Pages/HomePage/Panel";
 const HomePage = () => {
 
     const[loader , updateLoader] = useState(false);
+    const[activeSlide , setActiveSlide] = useState(0);
+    const[slideTo , setSlideToUpdate] = useState(0);
     const[images , imagesUpdate] = useState([]);
 
     useEffect(() => {
@@ -17,9 +19,9 @@ const HomePage = () => {
     return (
         <Layout>
 
-            <Swiper slides={images}/>
+            <Swiper slideTo={slideTo} setActiveSlide={setActiveSlide} slides={images}/>
 
-            <Panel loader={updateLoader} imagesUpdate={imagesUpdate}/>
+            <Panel loader={updateLoader} imagesUpdate={imagesUpdate} activeSlide={activeSlide} slideToUpdate={setSlideToUpdate}/>
 
             { loader && <Loader/>}
         </Layout>
