@@ -10,11 +10,30 @@ const Panel = ({imagesUpdate , loader}) => {
 
     const[classes , updateClasses] = useState('panelHide');
     const[text , textUpdate] = useState('');
+    const[imageUrls, setImageUrls] = useState([]);
     const[status , statusUpdate] = useState({
         next: '',
         previous: ''
     });
     const[count , countUpdate] = useState(0);
+
+
+    const saveTolocalStorage = () => {
+        localStorage.setItem('state', JSON.stringify({
+           searchText : text,
+           currentStatus : status,
+           currentCount : count,
+           currentImageUrls : imageUrls
+        }));
+    }
+
+    const getStateFromlocalStorage = () => {
+        let data = JSON.parse(localStorage.getItem('state'));
+        textUpdate(data.searchText);
+        statusUpdate(data.currentStatus);
+        imagesUpdate(state => data.currentImageUrls);
+        countUpdate(data.currentCount);
+    }
 
 
     useEffect(() => {
@@ -31,9 +50,14 @@ const Panel = ({imagesUpdate , loader}) => {
     const getImages = async () => {
         try{
             loader(true);
-            let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100`, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' }});
+            let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100`, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+                }
+            });
             let urls = imagesGetter(res.data.data.children);
             imagesUpdate(state => urls);
+            setImageUrls(state => urls);
             statusUpdate({...status ,
                 next: urls[urls.length - 1].id
             });
@@ -53,6 +77,7 @@ const Panel = ({imagesUpdate , loader}) => {
             let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`);
             let urls = imagesGetter(res.data.data.children);
             imagesUpdate(state => urls);
+            setImageUrls(state => urls);
             statusUpdate({
                 ...status,
                 next: urls[urls.length - 1].id,
@@ -75,6 +100,7 @@ const Panel = ({imagesUpdate , loader}) => {
             let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`);
             let urls = imagesGetter(res.data.data.children);
             imagesUpdate(state => urls);
+            setImageUrls(state => urls);
             statusUpdate({
                 ...status,
                 next: urls[urls.length - 1].id,
@@ -109,6 +135,20 @@ const Panel = ({imagesUpdate , loader}) => {
                           value={text}
                           onKeyPress={(e) => e.key === 'Enter' && getImages()}
                     />
+               </p>
+               <p className="control has-icons-left">
+               <Button
+                    className={'next_btn_panel'}
+                    onClick={() => saveTolocalStorage()}
+                >
+                    save
+                </Button>
+                <Button
+                    className={'next_btn_panel'}
+                    onClick={() => getStateFromlocalStorage()}
+                >
+                    restore
+                </Button>
                </p>
             </div>
 
