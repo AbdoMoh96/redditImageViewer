@@ -14,9 +14,13 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
 
   useEffect(() => {
     if (swiper.slideTo) {
-      swiper.slideTo(slideTo ?? 0);
+      swiper.slideTo(slideTo);
     }
   }, [swiper, slides, slideTo]);
+
+//   useEffect(() => {
+//     console.log("swiper active index :: ", swiper.activeIndex);
+//   }, [swiper.activeIndex]);
 
   const center = {
     display: "flex",
@@ -54,6 +58,7 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
       pagination={{ clickable: true }}
       scrollbar={{ draggable: true }}
       initialSlide={0}
+      onSlideChange={() =>  setActiveSlide(swiper.activeIndex)}
       onSwiper={(event) => initSwiper(event)}
     >
       {slides.map((slide) => {
