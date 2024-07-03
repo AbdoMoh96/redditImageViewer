@@ -4,6 +4,7 @@ import "./Scss/style.scss";
 import axios from "axios";
 import "../../../../Resources/Public/Scss/bulma/bulma.sass";
 import imagesGetter from "../../../../Helpers/imagesGetter";
+import * as randomUseragent from "random-useragent";
 import swal from "sweetalert";
 
 const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
@@ -52,7 +53,16 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const getImages = async () => {
     try {
       loader(true);
-      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100`);
+      let res = await axios.get(
+        `https://www.reddit.com/r/${text}/new.json?limit=100`,
+        {
+          headers: {
+            "User-Agent": randomUseragent.getRandom(function (ua) {
+              return ua.browserName === "Firefox";
+            }),
+          },
+        }
+      );
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
       setImageUrls((state) => urls);
@@ -71,7 +81,16 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     try {
       countUpdate((state) => state + 1);
       loader(true);
-      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`);
+      let res = await axios.get(
+        `https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`,
+        {
+          headers: {
+            "User-Agent": randomUseragent.getRandom(function (ua) {
+              return ua.browserName === "Firefox";
+            }),
+          },
+        }
+      );
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
       setImageUrls((state) => urls);
@@ -95,7 +114,16 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       countUpdate((state) => state - 1);
       loader(true);
       let imageId = status.previous;
-      let res = await axios.get(`https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`);
+      let res = await axios.get(
+        `https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`,
+        {
+          headers: {
+            "User-Agent": randomUseragent.getRandom(function (ua) {
+              return ua.browserName === "Firefox";
+            }),
+          },
+        }
+      );
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
       setImageUrls((state) => urls);
