@@ -52,7 +52,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const getImages = async () => {
     try {
       loader(true);
-      const url = 'https://corsproxy.io/?' + encodeURIComponent(`https://www.reddit.com/r/${text}/new.json?limit=100`);
+      const url = `https://www.reddit.com/r/${text}/new.json?limit=100`;
       let res = await axios.get(url);
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
@@ -72,7 +72,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     try {
       countUpdate((state) => state + 1);
       loader(true);
-      const url = 'https://corsproxy.io/?' + encodeURIComponent(`https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`);
+      const url = `https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`;
       let res = await axios.get(url);
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
@@ -97,7 +97,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       countUpdate((state) => state - 1);
       loader(true);
       let imageId = status.previous;
-      const url = 'https://corsproxy.io/?' + encodeURIComponent(`https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`);
+      const url = `https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`;
       let res = await axios.get(url);
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
