@@ -5,8 +5,7 @@ import MainRoutes from "./Web/MainRoutes";
 const Router = () => {
     return(
         <BrowserRouter>
-            <MainRoutes/> {/*main website routes*/}
-            {/*<ProtectedRoutes/>*/} {/*protected routes*/}
+            <MainRoutes/>
         </BrowserRouter>
     )
 }
