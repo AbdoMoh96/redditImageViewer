@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Swiper, SwiperSlide } from "swiper/react/swiper-react";
-import { Navigation, Pagination, Lazy } from "swiper";
-import "swiper/swiper.scss"; // core Swiper
-import "swiper/modules/navigation/navigation.scss"; // Navigation module
-import "swiper/modules/pagination/pagination.scss";
-import "swiper/modules/lazy/lazy.scss";
-import { Img } from "../../../Resources/Pages/HomePage/StyledComponents/style"; // lazy css
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Navigation, Pagination } from "swiper/modules";
+import 'swiper/css';
+import 'swiper/css/pagination';
+import 'swiper/css/navigation';
+import { Img } from "../../../Resources/Pages/HomePage/StyledComponents/style";
 
 const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
   const [swiper, updateSwiper] = useState({});
@@ -17,10 +16,6 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
       swiper.slideTo(slideTo);
     }
   }, [swiper, slides, slideTo]);
-
-//   useEffect(() => {
-//     console.log("swiper active index :: ", swiper.activeIndex);
-//   }, [swiper.activeIndex]);
 
   const center = {
     display: "flex",
@@ -48,13 +43,13 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
 
   return (
     <Swiper
-      modules={[Navigation, Pagination, Lazy]}
+      modules={[Navigation, Pagination]}
       preloadImages={false}
       lazy={true}
+      navigation={true}
       spaceBetween={0}
       className="swiper_main_height"
       slidesPerView={1}
-      navigation
       pagination={{ clickable: true }}
       scrollbar={{ draggable: true }}
       initialSlide={0}
@@ -66,8 +61,9 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
           <SwiperSlide key={slide.id} className="" style={center}>
             <h1 className={`${showSlide && "image_opacity"}`}>{slide.title}</h1>
             <Img
-              data-src={slide.url}
-              className={`swiper-lazy ${showSlide && "image_opacity"}`}
+              src={slide.url}
+              className={`${showSlide && "image_opacity"}`}
+              loading="lazy"
             />
             <div className="swiper-lazy-preloader swiper-lazy-preloader-black"></div>
           </SwiperSlide>
