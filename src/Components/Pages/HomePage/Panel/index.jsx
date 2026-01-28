@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Section, OpenBtn, CloseBtn, Button } from "./StyledComponents/style";
 import "./Scss/style.scss";
 import axios from "axios";
@@ -15,6 +15,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     previous: "",
   });
   const [count, countUpdate] = useState(0);
+  const [showSavedModal, setShowSavedModal] = useState(false);
+  const saveTimeoutRef = useRef(null);
 
   const saveTolocalStorage = () => {
     localStorage.setItem(
@@ -27,6 +29,14 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
         currentImageUrls: imageUrls,
       })
     );
+    setShowSavedModal(true);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      setShowSavedModal(false);
+      saveTimeoutRef.current = null;
+    }, 3000);
   };
 
   const getStateFromlocalStorage = () => {
@@ -39,7 +49,13 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     countUpdate(data.currentCount);
   };
 
-  useEffect(() => {}, []);
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const viewPanel = () => {
     if (classes === "panelHide") {
@@ -167,6 +183,13 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       <CloseBtn onClick={() => viewPanel()}>
         <h3>&#10005;</h3>
       </CloseBtn>
+
+      {showSavedModal && (
+        <div className="saved_modal" role="status" aria-live="polite">
+          <div className="saved_modal__backdrop" />
+          <div className="saved_modal__content">Saved successfully</div>
+        </div>
+      )}
     </Section>
   );
 };
