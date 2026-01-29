@@ -70,7 +70,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     saveTimeoutRef.current = setTimeout(() => {
       setShowSavedModal(false);
       saveTimeoutRef.current = null;
-    }, 3000);
+    }, 1000);
 
     await syncStateToDrive();
   };
