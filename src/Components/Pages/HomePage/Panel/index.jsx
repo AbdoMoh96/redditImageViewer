@@ -16,10 +16,20 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   });
   const [count, countUpdate] = useState(0);
   const [showSavedModal, setShowSavedModal] = useState(false);
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
+  const [collectionsOpen, setCollectionsOpen] = useState(true);
+  const [collections, setCollections] = useState([]);
+  const [activeCollection, setActiveCollection] = useState(null);
+  const [collectionForm, setCollectionForm] = useState({
+    name: "",
+    image: "",
+    query: "",
+  });
   const saveTimeoutRef = useRef(null);
   const tokenClientRef = useRef(null);
   const accessTokenRef = useRef(null);
   const tokenExpiryRef = useRef(0);
+  const collectionsLoadedRef = useRef(false);
 
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const GOOGLE_OAUTH_SCOPES =
@@ -34,6 +44,9 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_NAME || "reddit-image";
   const DRIVE_FILE_NAME =
     import.meta.env.VITE_GOOGLE_DRIVE_FILE_NAME || "state.json";
+  const COLLECTIONS_FILE_NAME =
+    import.meta.env.VITE_GOOGLE_DRIVE_COLLECTIONS_FILE_NAME ||
+    "collections.json";
 
   const buildStatePayload = () => ({
     searchText: text,
@@ -74,7 +87,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
 
   const restoreFromDrive = async () => {
     try {
-      const token = await ensureAccessToken();
+      const { token, collections: availableCollections } =
+        await ensureDriveReady();
       const folderId = await getDriveFolderId(token);
       if (!folderId) {
         await swal({
@@ -82,7 +96,23 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
         });
         return;
       }
-      const fileId = await getDriveFileId(token, folderId);
+      const targetCollection = activeCollection || availableCollections[0];
+      if (!targetCollection) {
+        await swal({
+          title: "Select a collection first",
+        });
+        return;
+      }
+      const collectionFolderId = await getOrCreateCollectionFolder(
+        token,
+        folderId,
+        targetCollection.name
+      );
+      const fileId = await getDriveFileId(
+        token,
+        collectionFolderId,
+        DRIVE_FILE_NAME
+      );
       if (!fileId) {
         await swal({
           title: "No saved state found in Google Drive",
@@ -295,6 +325,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     return folders[0]?.id || null;
   };
 
+  const escapeDriveQuery = (value) => value.replace(/'/g, "\\'");
+
   const getOrCreateDriveFolder = async (token) => {
     const existingId = await getDriveFolderId(token);
     if (existingId) {
@@ -315,12 +347,39 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     return data.id;
   };
 
-  const getDriveFileId = async (token, folderId) => {
+  const getDriveFileId = async (token, folderId, fileName = DRIVE_FILE_NAME) => {
     const files = await listDriveFiles(
       token,
-      `name='${DRIVE_FILE_NAME}' and '${folderId}' in parents and trashed=false`
+      `name='${escapeDriveQuery(fileName)}' and '${folderId}' in parents and trashed=false`
     );
     return files[0]?.id || null;
+  };
+
+  const getOrCreateCollectionFolder = async (
+    token,
+    parentFolderId,
+    collectionName
+  ) => {
+    const folders = await listDriveFiles(
+      token,
+      `name='${escapeDriveQuery(collectionName)}' and mimeType='application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed=false`
+    );
+    if (folders[0]?.id) {
+      return folders[0].id;
+    }
+    const res = await driveRequest(token, "/drive/v3/files?fields=id", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: collectionName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [parentFolderId],
+      }),
+    });
+    const data = await res.json();
+    return data.id;
   };
 
   const buildMultipartBody = (metadata, content) => {
@@ -342,9 +401,14 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     return { body, boundary };
   };
 
-  const createDriveFile = async (token, folderId, content) => {
+  const createDriveFile = async (
+    token,
+    folderId,
+    content,
+    fileName = DRIVE_FILE_NAME
+  ) => {
     const metadata = {
-      name: DRIVE_FILE_NAME,
+      name: fileName,
       parents: [folderId],
     };
     const { body, boundary } = buildMultipartBody(metadata, content);
@@ -383,16 +447,87 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     return res.json();
   };
 
+  const loadCollectionsFromDrive = async (token) => {
+    const folderId = await getDriveFolderId(token);
+    if (!folderId) {
+      setCollections([]);
+      return [];
+    }
+    const collectionsFileId = await getDriveFileId(
+      token,
+      folderId,
+      COLLECTIONS_FILE_NAME
+    );
+    if (!collectionsFileId) {
+      setCollections([]);
+      return [];
+    }
+    const data = await downloadDriveFile(token, collectionsFileId);
+    const list = Array.isArray(data) ? data : data?.collections || [];
+    setCollections(list);
+    if (!activeCollection && list.length > 0) {
+      setActiveCollection(list[0]);
+      textUpdate(list[0]?.query || "");
+    }
+    return list;
+  };
+
+  const syncCollectionsToDrive = async (token, folderId, list) => {
+    const collectionsFileId = await getDriveFileId(
+      token,
+      folderId,
+      COLLECTIONS_FILE_NAME
+    );
+    const payload = JSON.stringify(list);
+    if (collectionsFileId) {
+      await updateDriveFile(token, collectionsFileId, payload);
+    } else {
+      await createDriveFile(token, folderId, payload, COLLECTIONS_FILE_NAME);
+    }
+  };
+
+  const ensureDriveReady = async () => {
+    const token = await ensureAccessToken();
+    let loadedCollections = collections;
+    if (!collectionsLoadedRef.current) {
+      loadedCollections = await loadCollectionsFromDrive(token);
+      collectionsLoadedRef.current = true;
+    }
+    return { token, collections: loadedCollections };
+  };
+
   const syncStateToDrive = async () => {
     try {
-      const token = await ensureAccessToken();
+      const { token, collections: availableCollections } =
+        await ensureDriveReady();
       const folderId = await getOrCreateDriveFolder(token);
-      const fileId = await getDriveFileId(token, folderId);
+      const targetCollection = activeCollection || availableCollections[0];
+      if (!targetCollection) {
+        await swal({
+          title: "Select a collection first",
+        });
+        return;
+      }
+      const collectionFolderId = await getOrCreateCollectionFolder(
+        token,
+        folderId,
+        targetCollection.name
+      );
+      const fileId = await getDriveFileId(
+        token,
+        collectionFolderId,
+        DRIVE_FILE_NAME
+      );
       const payload = JSON.stringify(buildStatePayload());
       if (fileId) {
         await updateDriveFile(token, fileId, payload);
       } else {
-        await createDriveFile(token, folderId, payload);
+        await createDriveFile(
+          token,
+          collectionFolderId,
+          payload,
+          DRIVE_FILE_NAME
+        );
       }
     } catch (error) {
       await swal({
@@ -415,8 +550,119 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     return "Please try again.";
   };
 
+  const openCollectionModal = () => {
+    setShowCollectionModal(true);
+  };
+
+  const closeCollectionModal = () => {
+    setShowCollectionModal(false);
+    setCollectionForm({ name: "", image: "", query: "" });
+  };
+
+  const handleCreateCollection = async () => {
+    const trimmedName = collectionForm.name.trim();
+    const trimmedImage = collectionForm.image.trim();
+    const trimmedQuery = collectionForm.query.trim();
+    if (!trimmedName || !trimmedQuery) {
+      await swal({
+        title: "Please add a name and collection string",
+      });
+      return;
+    }
+    let baseCollections = collections;
+    let token = null;
+    try {
+      token = await ensureAccessToken();
+      if (!collectionsLoadedRef.current) {
+        baseCollections = await loadCollectionsFromDrive(token);
+        collectionsLoadedRef.current = true;
+      }
+    } catch (error) {
+      token = null;
+    }
+    const duplicate = baseCollections.some(
+      (item) => item.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (duplicate) {
+      await swal({
+        title: "Collection name already exists",
+      });
+      return;
+    }
+    const newCollection = {
+      name: trimmedName,
+      image: trimmedImage,
+      query: trimmedQuery,
+    };
+    const nextCollections = [...baseCollections, newCollection];
+    setCollections(nextCollections);
+    setActiveCollection(newCollection);
+    textUpdate(newCollection.query);
+    closeCollectionModal();
+    if (token) {
+      try {
+        const folderId = await getOrCreateDriveFolder(token);
+        await getOrCreateCollectionFolder(token, folderId, newCollection.name);
+        await syncCollectionsToDrive(token, folderId, nextCollections);
+      } catch (error) {
+        await swal({
+          title: "Google Drive sync failed",
+          text: getDriveErrorMessage(error),
+        });
+      }
+    }
+  };
+
+  const handleSelectCollection = (collection) => {
+    setActiveCollection(collection);
+    textUpdate(collection.query || "");
+  };
+
   return (
     <Section className={classes}>
+      <div
+        className={`collections_sidebar ${
+          collectionsOpen ? "collections_sidebar--open" : ""
+        }`}
+      >
+        <button
+          className="collections_sidebar__toggle"
+          onClick={() => setCollectionsOpen((state) => !state)}
+          type="button"
+        >
+          {collectionsOpen ? "<" : ">"}
+        </button>
+        <div className="collections_sidebar__header">
+          <div className="collections_sidebar__title">Collections</div>
+          <button
+            className="collections_sidebar__add"
+            onClick={openCollectionModal}
+            type="button"
+          >
+            + Add
+          </button>
+        </div>
+        <div className="collections_sidebar__list">
+          {collections.map((collection) => (
+            <button
+              key={collection.name}
+              className={`collections_sidebar__item ${
+                activeCollection?.name === collection.name
+                  ? "collections_sidebar__item--active"
+                  : ""
+              }`}
+              onClick={() => handleSelectCollection(collection)}
+              type="button"
+            >
+              <img
+                src={collection.image || "https://placehold.co/64x64"}
+                alt={collection.name}
+              />
+              <span>{collection.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <Button
         className={"previous_btn_panel"}
         disabled={count <= 0}
@@ -470,6 +716,63 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
         <div className="saved_modal" role="status" aria-live="polite">
           <div className="saved_modal__backdrop" />
           <div className="saved_modal__content">Saved successfully</div>
+        </div>
+      )}
+
+      {showCollectionModal && (
+        <div className="collection_modal" role="dialog" aria-modal="true">
+          <div
+            className="collection_modal__backdrop"
+            onClick={closeCollectionModal}
+            role="presentation"
+          />
+          <div className="collection_modal__content">
+            <h3>Create Collection</h3>
+            <input
+              className="input"
+              type="text"
+              placeholder="Collection name"
+              value={collectionForm.name}
+              onChange={(event) =>
+                setCollectionForm((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
+              }
+            />
+            <input
+              className="input"
+              type="text"
+              placeholder="Image URL"
+              value={collectionForm.image}
+              onChange={(event) =>
+                setCollectionForm((prev) => ({
+                  ...prev,
+                  image: event.target.value,
+                }))
+              }
+            />
+            <input
+              className="input"
+              type="text"
+              placeholder="Collection string (cats+dogs+birds)"
+              value={collectionForm.query}
+              onChange={(event) =>
+                setCollectionForm((prev) => ({
+                  ...prev,
+                  query: event.target.value,
+                }))
+              }
+            />
+            <div className="collection_modal__actions">
+              <Button type="button" onClick={handleCreateCollection}>
+                Create
+              </Button>
+              <Button type="button" onClick={closeCollectionModal}>
+                Cancel
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </Section>
