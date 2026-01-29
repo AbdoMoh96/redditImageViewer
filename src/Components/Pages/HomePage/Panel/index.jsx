@@ -180,8 +180,10 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const viewPanel = () => {
     if (classes === "panelHide") {
       updateClasses("panelShow");
+      setCollectionsOpen(true);
     } else {
       updateClasses("panelHide");
+      setCollectionsOpen(false);
     }
   };
 
@@ -685,22 +687,24 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
           collectionsOpen ? "collections_sidebar--open" : ""
         }`}
       >
-        <button
-          className="collections_sidebar__toggle"
-          onClick={() => setCollectionsOpen((state) => !state)}
-          type="button"
-        >
-          {collectionsOpen ? "<" : ">"}
-        </button>
         <div className="collections_sidebar__header">
           <div className="collections_sidebar__title">Collections</div>
-          <button
-            className="collections_sidebar__add"
-            onClick={openCollectionModal}
-            type="button"
-          >
-            + Add
-          </button>
+          <div className="collections_sidebar__actions">
+            <button
+              className="collections_sidebar__add"
+              onClick={openCollectionModal}
+              type="button"
+            >
+              + Add
+            </button>
+            <button
+              className="collections_sidebar__save"
+              onClick={() => saveTolocalStorage()}
+              type="button"
+            >
+              Save
+            </button>
+          </div>
         </div>
         <div className="collections_sidebar__list">
           {collections.map((collection) => (
@@ -730,33 +734,6 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       >
         previous stack
       </Button>
-
-      <div className="field">
-        <p className="control has-icons-left">
-          <input
-            className="input"
-            type="text"
-            placeholder="add subreddit's name"
-            onChange={(e) => textUpdate((state) => e.target.value)}
-            value={text}
-            onKeyPress={(e) => e.key === "Enter" && getImages()}
-          />
-        </p>
-        <p className="control has-icons-left">
-          <Button
-            className={"next_btn_panel"}
-            onClick={() => saveTolocalStorage()}
-          >
-            save
-          </Button>
-          <Button
-            className={"next_btn_panel"}
-            onClick={() => restoreFromDrive()}
-          >
-            restore
-          </Button>
-        </p>
-      </div>
 
       <Button className={"next_btn_panel"} onClick={() => getNextImages()}>
         next stack
