@@ -156,6 +156,20 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
           scope: GOOGLE_OAUTH_SCOPES,
           callback: () => {},
         });
+        swal({
+          title: "Connect Google Drive?",
+          text: "Sign in to load your collections and saved states.",
+          buttons: ["Not now", "Connect"],
+        }).then((willConnect) => {
+          if (willConnect) {
+            ensureDriveReady({ promptMode: "none" }).catch(async () => {
+              await swal({
+                title: "Google sign-in required",
+                text: "Please sign in to Google in this browser, then try Connect again.",
+              });
+            });
+          }
+        });
       })
       .catch(() => {});
     return () => {
@@ -254,9 +268,19 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     });
   };
 
-  const ensureAccessToken = async () => {
+  const ensureAccessToken = async ({ promptMode = "none" } = {}) => {
     if (!GOOGLE_CLIENT_ID) {
       throw new Error("Missing Google client ID.");
+    }
+    if (!accessTokenRef.current) {
+      const cachedToken = localStorage.getItem("googleDriveToken");
+      const cachedExpiry = Number(
+        localStorage.getItem("googleDriveTokenExpiry") || 0
+      );
+      if (cachedToken && cachedExpiry && Date.now() < cachedExpiry) {
+        accessTokenRef.current = cachedToken;
+        tokenExpiryRef.current = cachedExpiry;
+      }
     }
     if (accessTokenRef.current && Date.now() < tokenExpiryRef.current) {
       return accessTokenRef.current;
@@ -281,10 +305,15 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
         accessTokenRef.current = response.access_token;
         tokenExpiryRef.current =
           Date.now() + (response.expires_in || 3600) * 1000 - 60 * 1000;
+        localStorage.setItem("googleDriveToken", accessTokenRef.current);
+        localStorage.setItem(
+          "googleDriveTokenExpiry",
+          String(tokenExpiryRef.current)
+        );
         resolve(accessTokenRef.current);
       };
       tokenClientRef.current.requestAccessToken({
-        prompt: accessTokenRef.current ? "" : "consent",
+        prompt: promptMode,
       });
     });
   };
@@ -465,10 +494,6 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     const data = await downloadDriveFile(token, collectionsFileId);
     const list = Array.isArray(data) ? data : data?.collections || [];
     setCollections(list);
-    if (!activeCollection && list.length > 0) {
-      setActiveCollection(list[0]);
-      textUpdate(list[0]?.query || "");
-    }
     return list;
   };
 
@@ -486,8 +511,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     }
   };
 
-  const ensureDriveReady = async () => {
-    const token = await ensureAccessToken();
+  const ensureDriveReady = async ({ promptMode = "none" } = {}) => {
+    const token = await ensureAccessToken({ promptMode });
     let loadedCollections = collections;
     if (!collectionsLoadedRef.current) {
       loadedCollections = await loadCollectionsFromDrive(token);
