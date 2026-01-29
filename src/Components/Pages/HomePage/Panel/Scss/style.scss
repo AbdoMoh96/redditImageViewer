@@ -139,6 +139,7 @@
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
+  overflow-y: auto;
 }
 
 .collections_sidebar--open{
@@ -188,8 +189,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow-y: auto;
+  overflow: visible;
   padding-right: 4px;
+  flex: 1 1 auto;
 }
 
 .collections_sidebar__item{
@@ -235,6 +237,7 @@
 
 .collections_sidebar__menu{
   position: relative;
+  z-index: 1;
 }
 
 .collections_sidebar__menu_toggle{
@@ -244,6 +247,8 @@
   font-size: 18px;
   cursor: pointer;
   padding: 4px 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .collections_sidebar__menu_dropdown{
@@ -258,7 +263,7 @@
   flex-direction: column;
   gap: 6px;
   min-width: 120px;
-  z-index: 5;
+  z-index: 10;
   button{
     background: transparent;
     border: none;
