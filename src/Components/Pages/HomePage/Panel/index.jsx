@@ -751,6 +751,51 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     }
   };
 
+  const handleClearCollectionState = async (collection) => {
+    const confirmClear = await swal({
+      title: "Clear Google state?",
+      text: `Remove the saved state for "${collection.name}" from Google Drive?`,
+      buttons: ["Cancel", "Clear"],
+      dangerMode: true,
+    });
+    if (!confirmClear) {
+      return;
+    }
+    try {
+      const { token } = await ensureDriveReady({ promptMode: "none" });
+      const folderId = await getDriveFolderId(token);
+      if (!folderId) {
+        await swal({ title: "No Google Drive state found" });
+        return;
+      }
+      const collectionFolderId = await getCollectionFolderId(
+        token,
+        folderId,
+        collection.name
+      );
+      if (!collectionFolderId) {
+        await swal({ title: "No Google Drive state found" });
+        return;
+      }
+      const fileId = await getDriveFileId(
+        token,
+        collectionFolderId,
+        DRIVE_FILE_NAME
+      );
+      if (!fileId) {
+        await swal({ title: "No Google Drive state found" });
+        return;
+      }
+      await deleteDriveFile(token, fileId);
+      await swal({ title: "Google Drive state cleared" });
+    } catch (error) {
+      await swal({
+        title: "Google Drive sync failed",
+        text: getDriveErrorMessage(error),
+      });
+    }
+  };
+
   const handleSelectCollection = async (collection) => {
     const query = collection.query || "";
     if (activeCollection && activeCollection.name !== collection.name) {
@@ -863,6 +908,15 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
                       onClick={() => handleDeleteCollection(collection)}
                     >
                       Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollectionMenuOpen(null);
+                        handleClearCollectionState(collection);
+                      }}
+                    >
+                      Clear State
                     </button>
                   </div>
                 )}
