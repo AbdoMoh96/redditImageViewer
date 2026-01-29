@@ -185,10 +185,17 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     }
   };
 
-  const getImages = async () => {
+  const getImages = async (queryOverride) => {
     try {
+      const query = (queryOverride ?? text).trim();
+      if (!query) {
+        await swal({
+          title: "Please enter a collection string",
+        });
+        return;
+      }
       loader(true);
-      const url = `https://www.reddit.com/r/${text}/new.json?limit=100`;
+      const url = `https://www.reddit.com/r/${query}/new.json?limit=100`;
       let res = await axios.get(url);
       let urls = imagesGetter(res.data.data.children);
       imagesUpdate((state) => urls);
@@ -638,9 +645,37 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     }
   };
 
-  const handleSelectCollection = (collection) => {
+  const handleSelectCollection = async (collection) => {
+    const query = collection.query || "";
     setActiveCollection(collection);
-    textUpdate(collection.query || "");
+    textUpdate(query);
+    try {
+      const { token } = await ensureDriveReady({ promptMode: "none" });
+      const folderId = await getDriveFolderId(token);
+      if (!folderId) {
+        await getImages(query);
+        return;
+      }
+      const collectionFolderId = await getOrCreateCollectionFolder(
+        token,
+        folderId,
+        collection.name
+      );
+      const fileId = await getDriveFileId(
+        token,
+        collectionFolderId,
+        DRIVE_FILE_NAME
+      );
+      if (!fileId) {
+        await getImages(query);
+        return;
+      }
+      const data = await downloadDriveFile(token, fileId);
+      applySavedState(data);
+      localStorage.setItem("state", JSON.stringify(data));
+    } catch (error) {
+      await getImages(query);
+    }
   };
 
   return (
