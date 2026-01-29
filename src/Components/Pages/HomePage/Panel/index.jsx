@@ -753,6 +753,9 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
 
   const handleSelectCollection = async (collection) => {
     const query = collection.query || "";
+    if (activeCollection && activeCollection.name !== collection.name) {
+      await syncStateToDrive();
+    }
     setActiveCollection(collection);
     textUpdate(query);
     setCollectionMenuOpen(null);
