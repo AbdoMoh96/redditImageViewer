@@ -72,7 +72,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       saveTimeoutRef.current = null;
     }, 1000);
 
-    await syncStateToDrive();
+    await syncStateToDrive({ promptMode: "consent" });
   };
 
   const applySavedState = (data) => {
@@ -90,7 +90,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const restoreFromDrive = async () => {
     try {
       const { token, collections: availableCollections } =
-        await ensureDriveReady();
+        await ensureDriveReady({ promptMode: "consent" });
       const folderId = await getDriveFolderId(token);
       if (!folderId) {
         await swal({
@@ -164,7 +164,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
           buttons: ["Not now", "Connect"],
         }).then((willConnect) => {
           if (willConnect) {
-            ensureDriveReady({ promptMode: "none" }).catch(async () => {
+            ensureDriveReady({ promptMode: "consent" }).catch(async () => {
               await swal({
                 title: "Google sign-in required",
                 text: "Please sign in to Google in this browser, then try Connect again.",
@@ -550,10 +550,10 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     return { token, collections: loadedCollections };
   };
 
-  const syncStateToDrive = async () => {
+  const syncStateToDrive = async ({ promptMode = "none" } = {}) => {
     try {
       const { token, collections: availableCollections } =
-        await ensureDriveReady();
+        await ensureDriveReady({ promptMode });
       const folderId = await getOrCreateDriveFolder(token);
       const targetCollection = activeCollection || availableCollections[0];
       if (!targetCollection) {
@@ -628,7 +628,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     let baseCollections = collections;
     let token = null;
     try {
-      token = await ensureAccessToken();
+      token = await ensureAccessToken({ promptMode: "consent" });
       if (!collectionsLoadedRef.current) {
         baseCollections = await loadCollectionsFromDrive(token);
         collectionsLoadedRef.current = true;
