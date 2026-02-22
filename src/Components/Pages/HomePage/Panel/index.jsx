@@ -49,7 +49,13 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     process.env.NEXT_PUBLIC_GOOGLE_DRIVE_COLLECTIONS_FILE_NAME ||
     "collections.json";
   const APP_URL =
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    typeof process.env.NEXT_PUBLIC_APP_URL === "string" &&
+    process.env.NEXT_PUBLIC_APP_URL.trim()
+      ? process.env.NEXT_PUBLIC_APP_URL.trim()
+      : "";
+  const normalizedAppUrl = APP_URL.replace(/\/+$/, "");
+  const buildApiUrl = (path) =>
+    normalizedAppUrl ? `${normalizedAppUrl}${path}` : path;
 
   const buildStatePayload = () => ({
     searchText: text,
@@ -200,7 +206,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
         return;
       }
       loader(true);
-      const res = await axios.get(`${APP_URL}/api/reddit`, {
+      const res = await axios.get(buildApiUrl("/api/reddit"), {
         params: { subreddit: query, limit: 100 },
       });
       const urls = res.data?.images || [];
@@ -224,7 +230,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     try {
       countUpdate((state) => state + 1);
       loader(true);
-      const res = await axios.get(`${APP_URL}/api/reddit`, {
+      const res = await axios.get(buildApiUrl("/api/reddit"), {
         params: { subreddit: text, limit: 100, after: status.next },
       });
       const urls = res.data?.images || [];
@@ -253,7 +259,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       countUpdate((state) => state - 1);
       loader(true);
       let imageId = status.previous;
-      const res = await axios.get(`${APP_URL}/api/reddit`, {
+      const res = await axios.get(buildApiUrl("/api/reddit"), {
         params: { subreddit: text, limit: 100, before: imageId },
       });
       const urls = res.data?.images || [];
