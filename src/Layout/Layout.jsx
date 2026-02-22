@@ -1,5 +1,4 @@
 import React from "react";
-import './Scss/style.scss';
 import {Main} from "./StyledComponents/style";
 
 

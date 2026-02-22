@@ -1,9 +1,8 @@
+"use client";
+
 import React, { useEffect, useRef, useState } from "react";
 import { Section, OpenBtn, CloseBtn, Button } from "./StyledComponents/style";
-import "./Scss/style.scss";
 import axios from "axios";
-import "../../../../Resources/Public/Scss/bulma/bulma.sass";
-import imagesGetter from "../../../../Helpers/imagesGetter";
 import swal from "sweetalert";
 
 const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
@@ -33,22 +32,24 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const tokenExpiryRef = useRef(0);
   const collectionsLoadedRef = useRef(false);
 
-  const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const GOOGLE_OAUTH_SCOPES =
-    import.meta.env.VITE_GOOGLE_OAUTH_SCOPES ||
+    process.env.NEXT_PUBLIC_GOOGLE_OAUTH_SCOPES ||
     "https://www.googleapis.com/auth/drive.file";
   const GOOGLE_API_BASE =
-    import.meta.env.VITE_GOOGLE_API_BASE || "https://www.googleapis.com";
+    process.env.NEXT_PUBLIC_GOOGLE_API_BASE || "https://www.googleapis.com";
   const GOOGLE_GSI_SCRIPT =
-    import.meta.env.VITE_GOOGLE_GSI_SCRIPT ||
+    process.env.NEXT_PUBLIC_GOOGLE_GSI_SCRIPT ||
     "https://accounts.google.com/gsi/client";
   const DRIVE_FOLDER_NAME =
-    import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_NAME || "reddit-image";
+    process.env.NEXT_PUBLIC_GOOGLE_DRIVE_FOLDER_NAME || "reddit-image";
   const DRIVE_FILE_NAME =
-    import.meta.env.VITE_GOOGLE_DRIVE_FILE_NAME || "state.json";
+    process.env.NEXT_PUBLIC_GOOGLE_DRIVE_FILE_NAME || "state.json";
   const COLLECTIONS_FILE_NAME =
-    import.meta.env.VITE_GOOGLE_DRIVE_COLLECTIONS_FILE_NAME ||
+    process.env.NEXT_PUBLIC_GOOGLE_DRIVE_COLLECTIONS_FILE_NAME ||
     "collections.json";
+  const APP_URL =
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   const buildStatePayload = () => ({
     searchText: text,
@@ -199,11 +200,15 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
         return;
       }
       loader(true);
-      const url = `https://www.reddit.com/r/${query}/new.json?limit=100`;
-      let res = await axios.get(url);
-      let urls = imagesGetter(res.data.data.children);
-      imagesUpdate((state) => urls);
-      setImageUrls((state) => urls);
+      const res = await axios.get(`${APP_URL}/api/reddit`, {
+        params: { subreddit: query, limit: 100 },
+      });
+      const urls = res.data?.images || [];
+      if (!urls.length) {
+        throw new Error("No images found");
+      }
+      imagesUpdate(() => urls);
+      setImageUrls(() => urls);
       slideToUpdate(0);
       statusUpdate({ ...status, next: urls[urls.length - 1].id });
       loader(false);
@@ -219,11 +224,15 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     try {
       countUpdate((state) => state + 1);
       loader(true);
-      const url = `https://www.reddit.com/r/${text}/new.json?limit=100&after=${status.next}`;
-      let res = await axios.get(url);
-      let urls = imagesGetter(res.data.data.children);
-      imagesUpdate((state) => urls);
-      setImageUrls((state) => urls);
+      const res = await axios.get(`${APP_URL}/api/reddit`, {
+        params: { subreddit: text, limit: 100, after: status.next },
+      });
+      const urls = res.data?.images || [];
+      if (!urls.length) {
+        throw new Error("No images found");
+      }
+      imagesUpdate(() => urls);
+      setImageUrls(() => urls);
       slideToUpdate(0);
       statusUpdate({
         ...status,
@@ -244,11 +253,15 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       countUpdate((state) => state - 1);
       loader(true);
       let imageId = status.previous;
-      const url = `https://www.reddit.com/r/${text}/new.json?limit=100&before=${imageId}`;
-      let res = await axios.get(url);
-      let urls = imagesGetter(res.data.data.children);
-      imagesUpdate((state) => urls);
-      setImageUrls((state) => urls);
+      const res = await axios.get(`${APP_URL}/api/reddit`, {
+        params: { subreddit: text, limit: 100, before: imageId },
+      });
+      const urls = res.data?.images || [];
+      if (!urls.length) {
+        throw new Error("No images found");
+      }
+      imagesUpdate(() => urls);
+      setImageUrls(() => urls);
       slideToUpdate(0);
       statusUpdate({
         ...status,
