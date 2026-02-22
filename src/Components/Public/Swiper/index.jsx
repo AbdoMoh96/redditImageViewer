@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Navigation, Pagination } from "swiper/modules";
+import { Navigation, Pagination, Virtual } from "swiper/modules";
 import { Img } from "../../../Resources/Pages/HomePage/StyledComponents/style";
 
 const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
   const [swiper, updateSwiper] = useState({});
   const [showSlide, showSlideUpdate] = useState(false);
+  const [loadedMap, setLoadedMap] = useState({});
   /*const [slideIndex , slideIndexUpdate] = useState(0);*/
 
   useEffect(() => {
@@ -42,9 +43,9 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
 
   return (
     <Swiper
-      modules={[Navigation, Pagination]}
+      modules={[Navigation, Pagination, Virtual]}
       preloadImages={false}
-      lazy={true}
+      virtual={{ addSlidesBefore: 1, addSlidesAfter: 1 }}
       navigation={true}
       spaceBetween={0}
       className="swiper_main_height"
@@ -55,20 +56,38 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
       onSlideChange={() =>  setActiveSlide(swiper.activeIndex)}
       onSwiper={(event) => initSwiper(event)}
     >
-      {slides.map((slide) => {
+      {slides.map((slide, index) => {
+        const isLoaded = Boolean(loadedMap[slide.id]);
         return (
-          <SwiperSlide key={slide.id} className="" style={center}>
+          <SwiperSlide
+            key={slide.id}
+            virtualIndex={index}
+            className=""
+            style={center}
+          >
             <h1 className={`${showSlide && "image_opacity"}`}>{slide.title}</h1>
-            <Img
-              src={slide.url}
-              className={`${showSlide && "image_opacity"}`}
-              loading="lazy"
-            />
-            <div className="swiper-lazy-preloader swiper-lazy-preloader-black"></div>
+            <div className="slide_image_wrapper">
+              {!isLoaded && (
+                <div className="slide_image_loader" aria-live="polite">
+                  Loading image…
+                </div>
+              )}
+              <Img
+                src={slide.url}
+                className={`slide_image ${!isLoaded ? "slide_image--hidden" : ""} ${showSlide && "image_opacity"}`}
+                loading="lazy"
+                onLoad={() =>
+                  setLoadedMap((state) => ({ ...state, [slide.id]: true }))
+                }
+                onError={() =>
+                  setLoadedMap((state) => ({ ...state, [slide.id]: true }))
+                }
+                alt={slide.title || "Reddit image"}
+              />
+            </div>
           </SwiperSlide>
         );
       })}
-      ;
     </Swiper>
   );
 };
