@@ -58,6 +58,12 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
     >
       {slides.map((slide, index) => {
         const isLoaded = Boolean(loadedMap[slide.id]);
+        const titleText = slide.subreddit
+          ? `${slide.title} - r/${slide.subreddit}`
+          : slide.title;
+        const postUrl = slide.permalink
+          ? `https://www.reddit.com${slide.permalink}`
+          : null;
         return (
           <SwiperSlide
             key={slide.id}
@@ -65,7 +71,20 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
             className=""
             style={center}
           >
-            <h1 className={`${showSlide && "image_opacity"}`}>{slide.title}</h1>
+            {postUrl ? (
+              <a
+                className={`slide_title ${showSlide && "image_opacity"}`}
+                href={postUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {titleText}
+              </a>
+            ) : (
+              <h1 className={`slide_title ${showSlide && "image_opacity"}`}>
+                {titleText}
+              </h1>
+            )}
             <div className="slide_image_wrapper">
               {!isLoaded && (
                 <div className="slide_image_loader" aria-live="polite">

@@ -7,7 +7,9 @@ const imagesGetter = (images) => {
                    image = {
                        id: element.data.name,
                        title: element.data.title,
-                       url: element.data.url_overridden_by_dest
+                       url: element.data.url_overridden_by_dest,
+                       subreddit: element.data.subreddit,
+                       permalink: element.data.permalink
                    };
             }
             return image;

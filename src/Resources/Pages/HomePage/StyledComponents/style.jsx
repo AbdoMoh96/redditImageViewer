@@ -7,8 +7,8 @@ const c = {
 
 const Img =  styled.img`
   border-radius: 10px;
-  max-height: 95vh;
-  max-width: 90vw;
+  max-height: 100vh;
+  max-width: 100vw;
   margin-bottom: 2vh;
 
   @media only screen and (max-width: 800px){
