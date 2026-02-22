@@ -11,7 +11,7 @@ const Loader = () => {
 
     return (
       <div className={"loader"}>
-          <img src={loaderImage} alt=""/>
+          <img src={loaderImage.src || loaderImage} alt=""/>
           <span>Loading ....</span>
       </div>
     );
