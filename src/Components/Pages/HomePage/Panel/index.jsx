@@ -57,7 +57,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   }) => {
     const url = new URL(
       `/r/${encodeURIComponent(subreddit)}/new.json`,
-      "https://www.reddit.com"
+      "https://old.reddit.com"
     );
     url.searchParams.set("limit", String(limit));
     if (after) {
