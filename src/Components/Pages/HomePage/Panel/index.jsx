@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Section, OpenBtn, CloseBtn, Button } from "./StyledComponents/style";
 import axios from "axios";
 import swal from "sweetalert";
+import imagesGetter from "../../../../Helpers/imagesGetter";
 
 const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const [classes, updateClasses] = useState("panelHide");
@@ -48,14 +49,36 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const COLLECTIONS_FILE_NAME =
     process.env.NEXT_PUBLIC_GOOGLE_DRIVE_COLLECTIONS_FILE_NAME ||
     "collections.json";
-  const APP_URL =
-    typeof process.env.NEXT_PUBLIC_APP_URL === "string" &&
-    process.env.NEXT_PUBLIC_APP_URL.trim()
-      ? process.env.NEXT_PUBLIC_APP_URL.trim()
-      : "";
-  const normalizedAppUrl = APP_URL.replace(/\/+$/, "");
-  const buildApiUrl = (path) =>
-    normalizedAppUrl ? `${normalizedAppUrl}${path}` : path;
+  const buildRedditUrl = ({
+    subreddit,
+    limit = 100,
+    after,
+    before,
+  }) => {
+    const url = new URL(
+      `/r/${encodeURIComponent(subreddit)}/new.json`,
+      "https://www.reddit.com"
+    );
+    url.searchParams.set("limit", String(limit));
+    if (after) {
+      url.searchParams.set("after", after);
+    }
+    if (before) {
+      url.searchParams.set("before", before);
+    }
+    return url.toString();
+  };
+
+  const fetchRedditImages = async ({ subreddit, limit, after, before }) => {
+    const url = buildRedditUrl({ subreddit, limit, after, before });
+    const res = await axios.get(url);
+    const data = res.data?.data;
+    return {
+      images: imagesGetter(data?.children || []),
+      after: data?.after || "",
+      before: data?.before || "",
+    };
+  };
 
   const buildStatePayload = () => ({
     searchText: text,
@@ -206,17 +229,22 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
         return;
       }
       loader(true);
-      const res = await axios.get(buildApiUrl("/api/reddit"), {
-        params: { subreddit: query, limit: 100 },
+      const { images, after, before } = await fetchRedditImages({
+        subreddit: query,
+        limit: 100,
       });
-      const urls = res.data?.images || [];
+      const urls = images || [];
       if (!urls.length) {
         throw new Error("No images found");
       }
       imagesUpdate(() => urls);
       setImageUrls(() => urls);
       slideToUpdate(0);
-      statusUpdate({ ...status, next: urls[urls.length - 1].id });
+      statusUpdate({
+        ...status,
+        next: after,
+        previous: before,
+      });
       loader(false);
     } catch {
       await swal({
@@ -230,10 +258,12 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     try {
       countUpdate((state) => state + 1);
       loader(true);
-      const res = await axios.get(buildApiUrl("/api/reddit"), {
-        params: { subreddit: text, limit: 100, after: status.next },
+      const { images, after, before } = await fetchRedditImages({
+        subreddit: text,
+        limit: 100,
+        after: status.next,
       });
-      const urls = res.data?.images || [];
+      const urls = images || [];
       if (!urls.length) {
         throw new Error("No images found");
       }
@@ -242,8 +272,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       slideToUpdate(0);
       statusUpdate({
         ...status,
-        next: urls[urls.length - 1].id,
-        previous: urls[0].id,
+        next: after,
+        previous: before,
       });
       loader(false);
     } catch {
@@ -258,11 +288,12 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     try {
       countUpdate((state) => state - 1);
       loader(true);
-      let imageId = status.previous;
-      const res = await axios.get(buildApiUrl("/api/reddit"), {
-        params: { subreddit: text, limit: 100, before: imageId },
+      const { images, after, before } = await fetchRedditImages({
+        subreddit: text,
+        limit: 100,
+        before: status.previous,
       });
-      const urls = res.data?.images || [];
+      const urls = images || [];
       if (!urls.length) {
         throw new Error("No images found");
       }
@@ -271,8 +302,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       slideToUpdate(0);
       statusUpdate({
         ...status,
-        next: urls[urls.length - 1].id,
-        previous: urls[0].id,
+        next: after,
+        previous: before,
       });
       loader(false);
     } catch {
