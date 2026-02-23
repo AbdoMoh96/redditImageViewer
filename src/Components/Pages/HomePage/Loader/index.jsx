@@ -1,6 +1,7 @@
+"use client";
+
 import React, {useEffect} from "react";
-import "./Styles/Scss/style.scss";
-import loaderImage from  '../../../../Resources/Pages/HomePage/img/reddit.gif';
+import loaderImage from  "../../../../Resources/Pages/HomePage/img/reddit.gif";
 
 const Loader = () => {
 
@@ -10,7 +11,7 @@ const Loader = () => {
 
     return (
       <div className={"loader"}>
-          <img src={loaderImage} alt=""/>
+          <img src={loaderImage.src || loaderImage} alt=""/>
           <span>Loading ....</span>
       </div>
     );
