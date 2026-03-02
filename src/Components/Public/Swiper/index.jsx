@@ -12,6 +12,7 @@ const CustomSwiper = ({
   albums,
   onAddToAlbum,
   onRemoveFromAlbum,
+  onEnterCarousel,
 }) => {
   const [swiper, updateSwiper] = useState({});
   const [showSlide, showSlideUpdate] = useState(false);
@@ -56,10 +57,11 @@ const CustomSwiper = ({
         {viewMode === "grid" && slides.length > 0 ? (
           <div className="h-full overflow-y-auto px-4 sm:px-8 py-6">
             <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {slides.map((slide) => (
+              {slides.map((slide, index) => (
                 <div
                   key={slide.id || slide.url}
-                  className="group relative rounded-3xl border border-slate-800/70 bg-slate-900/40 p-3"
+                  className="group relative cursor-pointer rounded-3xl border border-slate-800/70 bg-slate-900/40 p-3 transition hover:border-emerald-400/40"
+                  onClick={() => onEnterCarousel?.(index)}
                 >
                   <img
                     src={slide.url}
@@ -82,6 +84,8 @@ const CustomSwiper = ({
                               : slide.id || slide.url
                           )
                         }
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClickCapture={(event) => event.stopPropagation()}
                       >
                         Add
                       </button>
@@ -98,6 +102,8 @@ const CustomSwiper = ({
                                 type="button"
                                 className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
                                 onClick={() => handleAddToAlbum(slide, album.name)}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClickCapture={(event) => event.stopPropagation()}
                               >
                                 {album.name}
                               </button>
@@ -112,6 +118,8 @@ const CustomSwiper = ({
                       type="button"
                       className="mt-3 w-full rounded-full border border-rose-400/40 bg-rose-400/10 px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-rose-200"
                       onClick={() => handleAddToAlbum(slide, "__remove__")}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClickCapture={(event) => event.stopPropagation()}
                     >
                       Remove from album
                     </button>

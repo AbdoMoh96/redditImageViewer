@@ -26,6 +26,7 @@ const Panel = ({
   });
   const [count, countUpdate] = useState(0);
   const [showSavedModal, setShowSavedModal] = useState(false);
+  const [albumToast, setAlbumToast] = useState(null);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [collectionsOpen, setCollectionsOpen] = useState(true);
   const [collections, setCollections] = useState([]);
@@ -47,6 +48,7 @@ const Panel = ({
   });
   const [driveConnected, setDriveConnected] = useState(false);
   const saveTimeoutRef = useRef(null);
+  const albumToastRef = useRef(null);
   const tokenClientRef = useRef(null);
   const accessTokenRef = useRef(null);
   const tokenExpiryRef = useRef(0);
@@ -187,8 +189,22 @@ const Panel = ({
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      if (albumToastRef.current) {
+        clearTimeout(albumToastRef.current);
+      }
     };
   }, []);
+
+  const showAlbumToast = (message) => {
+    setAlbumToast(message);
+    if (albumToastRef.current) {
+      clearTimeout(albumToastRef.current);
+    }
+    albumToastRef.current = setTimeout(() => {
+      setAlbumToast(null);
+      albumToastRef.current = null;
+    }, 1000);
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1327,24 +1343,28 @@ const Panel = ({
       item.name === albumName ? { ...item, images } : item
     );
     setAlbums(nextAlbums);
-    if (activeAlbum?.name === albumName) {
-      setActiveAlbum({ ...target, images });
-      setImageUrls(images);
-      imagesUpdate(images);
-    }
     try {
       const token = await ensureAccessToken({ promptMode: "none" });
       await saveAlbumImagesToDrive(token, albumName, images);
       await syncAlbumsIndexToDrive(token, nextAlbums);
-      await swal({ title: "Added to album" });
+      showAlbumToast("Added to album");
     } catch (error) {
-      await swal({ title: "Saved locally", text: "Connect Drive to sync." });
+      showAlbumToast("Saved locally");
     }
   };
 
   const removeImageFromActiveAlbum = async (slide) => {
     if (!activeAlbum) {
       await swal({ title: "No active album selected" });
+      return;
+    }
+    const confirmDelete = await swal({
+      title: "Remove image?",
+      text: "Remove this image from the album?",
+      buttons: ["Cancel", "Remove"],
+      dangerMode: true,
+    });
+    if (!confirmDelete) {
       return;
     }
     const images = (activeAlbum.images || []).filter(
@@ -1361,9 +1381,9 @@ const Panel = ({
       const token = await ensureAccessToken({ promptMode: "none" });
       await saveAlbumImagesToDrive(token, activeAlbum.name, images);
       await syncAlbumsIndexToDrive(token, nextAlbums);
-      await swal({ title: "Removed from album" });
+      showAlbumToast("Removed from album");
     } catch (error) {
-      await swal({ title: "Saved locally", text: "Connect Drive to sync." });
+      showAlbumToast("Saved locally");
     }
   };
 
@@ -1773,6 +1793,18 @@ const Panel = ({
         >
           <div className="rounded-2xl border border-emerald-400/40 bg-slate-950/90 px-6 py-4 text-sm uppercase tracking-[0.3em] text-emerald-200 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
             Saved successfully
+          </div>
+        </div>
+      )}
+
+      {albumToast && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 backdrop-blur"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="rounded-2xl border border-emerald-400/40 bg-slate-950/90 px-6 py-4 text-sm uppercase tracking-[0.3em] text-emerald-200 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+            {albumToast}
           </div>
         </div>
       )}

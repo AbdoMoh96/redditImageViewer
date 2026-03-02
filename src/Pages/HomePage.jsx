@@ -16,6 +16,11 @@ const HomePage = () => {
   const [viewMode, setViewMode] = useState("carousel");
   const albumActionsRef = useRef(null);
 
+  const handleEnterCarousel = (index) => {
+    setViewMode("carousel");
+    setSlideToUpdate(index);
+  };
+
   return (
     <Layout>
       <Swiper
@@ -24,6 +29,7 @@ const HomePage = () => {
         slides={images}
         viewMode={viewMode}
         albums={albums}
+        onEnterCarousel={handleEnterCarousel}
         onAddToAlbum={(slide, albumName) =>
           albumActionsRef.current?.addImageToAlbum?.(slide, albumName)
         }
