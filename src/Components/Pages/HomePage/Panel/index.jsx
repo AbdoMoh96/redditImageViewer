@@ -1,13 +1,23 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Section, OpenBtn, CloseBtn, Button } from "./StyledComponents/style";
 import axios from "axios";
 import swal from "sweetalert";
 import imagesGetter from "../../../../Helpers/imagesGetter";
 
-const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
-  const [classes, updateClasses] = useState("panelHide");
+const Panel = ({
+  imagesUpdate,
+  loader,
+  activeSlide,
+  slideToUpdate,
+  albums,
+  setAlbums,
+  activeAlbum,
+  setActiveAlbum,
+  setViewMode,
+  albumActionsRef,
+}) => {
+  const [panelOpen, setPanelOpen] = useState(false);
   const [text, textUpdate] = useState("");
   const [imageUrls, setImageUrls] = useState([]);
   const [status, statusUpdate] = useState({
@@ -16,22 +26,34 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   });
   const [count, countUpdate] = useState(0);
   const [showSavedModal, setShowSavedModal] = useState(false);
+  const [albumToast, setAlbumToast] = useState(null);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [collectionsOpen, setCollectionsOpen] = useState(true);
   const [collections, setCollections] = useState([]);
   const [activeCollection, setActiveCollection] = useState(null);
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(null);
+  const [albumMenuOpen, setAlbumMenuOpen] = useState(null);
   const [editingCollection, setEditingCollection] = useState(null);
   const [collectionForm, setCollectionForm] = useState({
     name: "",
     image: "",
     query: "",
   });
+  const [albumsOpen, setAlbumsOpen] = useState(false);
+  const [showAlbumModal, setShowAlbumModal] = useState(false);
+  const [editingAlbum, setEditingAlbum] = useState(null);
+  const [albumForm, setAlbumForm] = useState({
+    name: "",
+    image: "",
+  });
+  const [driveConnected, setDriveConnected] = useState(false);
   const saveTimeoutRef = useRef(null);
+  const albumToastRef = useRef(null);
   const tokenClientRef = useRef(null);
   const accessTokenRef = useRef(null);
   const tokenExpiryRef = useRef(0);
   const collectionsLoadedRef = useRef(false);
+  const albumsLoadedRef = useRef(false);
 
   const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const GOOGLE_OAUTH_SCOPES =
@@ -49,12 +71,15 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const COLLECTIONS_FILE_NAME =
     process.env.NEXT_PUBLIC_GOOGLE_DRIVE_COLLECTIONS_FILE_NAME ||
     "collections.json";
-  const buildRedditUrl = ({
-    subreddit,
-    limit = 100,
-    after,
-    before,
-  }) => {
+  const ALBUMS_FOLDER_NAME =
+    process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ALBUMS_FOLDER_NAME || "albums";
+  const ALBUMS_INDEX_FILE =
+    process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ALBUMS_INDEX_FILE || "albums.json";
+  const ALBUM_IMAGES_FILE =
+    process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ALBUM_IMAGES_FILE || "images.json";
+  const DEFAULT_ALBUM_NAME = "favorate";
+
+  const buildRedditUrl = ({ subreddit, limit = 100, after, before }) => {
     const url = new URL(
       `/r/${encodeURIComponent(subreddit)}/new.json`,
       "https://old.reddit.com"
@@ -89,10 +114,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   });
 
   const saveTolocalStorage = async () => {
-    localStorage.setItem(
-      "state",
-      JSON.stringify(buildStatePayload())
-    );
+    localStorage.setItem("state", JSON.stringify(buildStatePayload()));
     setShowSavedModal(true);
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -167,7 +189,51 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      if (albumToastRef.current) {
+        clearTimeout(albumToastRef.current);
+      }
     };
+  }, []);
+
+  const showAlbumToast = (message) => {
+    setAlbumToast(message);
+    if (albumToastRef.current) {
+      clearTimeout(albumToastRef.current);
+    }
+    albumToastRef.current = setTimeout(() => {
+      setAlbumToast(null);
+      albumToastRef.current = null;
+    }, 1000);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return () => {};
+    }
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const handleChange = (event) => {
+      setPanelOpen(event.matches);
+    };
+    setPanelOpen(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  const ensureDefaultAlbum = async () => {
+    if (albums.some((album) => album.name === DEFAULT_ALBUM_NAME)) {
+      return;
+    }
+    const defaultAlbum = {
+      name: DEFAULT_ALBUM_NAME,
+      image: "",
+      images: [],
+    };
+    const nextAlbums = [...albums, defaultAlbum];
+    setAlbums(nextAlbums);
+  };
+
+  useEffect(() => {
+    ensureDefaultAlbum();
   }, []);
 
   useEffect(() => {
@@ -188,6 +254,28 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
           scope: GOOGLE_OAUTH_SCOPES,
           callback: () => {},
         });
+        const cachedToken = localStorage.getItem("googleDriveToken");
+        const cachedExpiry = Number(
+          localStorage.getItem("googleDriveTokenExpiry") || 0
+        );
+        const hasValidCachedToken =
+          Boolean(cachedToken) && cachedExpiry && Date.now() < cachedExpiry;
+        if (hasValidCachedToken) {
+          accessTokenRef.current = cachedToken;
+          tokenExpiryRef.current = cachedExpiry;
+          setDriveConnected(true);
+          loadCollectionsFromDrive(cachedToken)
+            .then(() => {
+              collectionsLoadedRef.current = true;
+            })
+            .catch(() => {});
+          loadAlbumsFromDrive(cachedToken)
+            .then(() => {
+              albumsLoadedRef.current = true;
+            })
+            .catch(() => {});
+          return;
+        }
         swal({
           title: "Connect Google Drive?",
           text: "Sign in to load your collections and saved states.",
@@ -200,6 +288,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
                 text: "Please sign in to Google in this browser, then try Connect again.",
               });
             });
+            setDriveConnected(true);
           }
         });
       })
@@ -209,14 +298,19 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     };
   }, [GOOGLE_CLIENT_ID, GOOGLE_GSI_SCRIPT, GOOGLE_OAUTH_SCOPES]);
 
-  const viewPanel = () => {
-    if (classes === "panelHide") {
-      updateClasses("panelShow");
-      setCollectionsOpen(true);
-    } else {
-      updateClasses("panelHide");
-      setCollectionsOpen(false);
+  useEffect(() => {
+    if (!driveConnected || albumsLoadedRef.current) {
+      return;
     }
+    ensureDriveReady({ promptMode: "none" })
+      .then(() => {
+        albumsLoadedRef.current = true;
+      })
+      .catch(() => {});
+  }, [driveConnected]);
+
+  const togglePanel = () => {
+    setPanelOpen((state) => !state);
   };
 
   const getImages = async (queryOverride) => {
@@ -240,6 +334,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       imagesUpdate(() => urls);
       setImageUrls(() => urls);
       slideToUpdate(0);
+      setActiveAlbum(null);
+      setViewMode("carousel");
       statusUpdate({
         ...status,
         next: after,
@@ -270,6 +366,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       imagesUpdate(() => urls);
       setImageUrls(() => urls);
       slideToUpdate(0);
+      setActiveAlbum(null);
+      setViewMode("carousel");
       statusUpdate({
         ...status,
         next: after,
@@ -300,6 +398,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       imagesUpdate(() => urls);
       setImageUrls(() => urls);
       slideToUpdate(0);
+      setActiveAlbum(null);
+      setViewMode("carousel");
       statusUpdate({
         ...status,
         next: after,
@@ -389,6 +489,12 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     });
     if (!res.ok) {
       const errorText = await res.text();
+      if (res.status === 401 || res.status === 403) {
+        accessTokenRef.current = null;
+        tokenExpiryRef.current = 0;
+        localStorage.removeItem("googleDriveToken");
+        localStorage.removeItem("googleDriveTokenExpiry");
+      }
       throw new Error(errorText || `Drive request failed: ${res.status}`);
     }
     return res;
@@ -482,6 +588,62 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
       `name='${escapeDriveQuery(collectionName)}' and mimeType='application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed=false`
     );
     return folders[0]?.id || null;
+  };
+
+  const getAlbumsRootId = async (token, parentFolderId) => {
+    const folders = await listDriveFiles(
+      token,
+      `name='${escapeDriveQuery(ALBUMS_FOLDER_NAME)}' and mimeType='application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed=false`
+    );
+    return folders[0]?.id || null;
+  };
+
+  const getOrCreateAlbumsRootId = async (token, parentFolderId) => {
+    const existingId = await getAlbumsRootId(token, parentFolderId);
+    if (existingId) {
+      return existingId;
+    }
+    const res = await driveRequest(token, "/drive/v3/files?fields=id", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: ALBUMS_FOLDER_NAME,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [parentFolderId],
+      }),
+    });
+    const data = await res.json();
+    return data.id;
+  };
+
+  const getAlbumFolderId = async (token, albumsRootId, albumName) => {
+    const folders = await listDriveFiles(
+      token,
+      `name='${escapeDriveQuery(albumName)}' and mimeType='application/vnd.google-apps.folder' and '${albumsRootId}' in parents and trashed=false`
+    );
+    return folders[0]?.id || null;
+  };
+
+  const getOrCreateAlbumFolderId = async (token, albumsRootId, albumName) => {
+    const existingId = await getAlbumFolderId(token, albumsRootId, albumName);
+    if (existingId) {
+      return existingId;
+    }
+    const res = await driveRequest(token, "/drive/v3/files?fields=id", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: albumName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [albumsRootId],
+      }),
+    });
+    const data = await res.json();
+    return data.id;
   };
 
   const buildMultipartBody = (metadata, content) => {
@@ -590,12 +752,131 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     }
   };
 
+  const loadAlbumsFromDrive = async (token) => {
+    const rootFolderId = await getOrCreateDriveFolder(token);
+    const albumsRootId = await getOrCreateAlbumsRootId(token, rootFolderId);
+    let albumsIndexId = await getDriveFileId(
+      token,
+      albumsRootId,
+      ALBUMS_INDEX_FILE
+    );
+    let list = [];
+    if (!albumsIndexId) {
+      list = [
+        {
+          name: DEFAULT_ALBUM_NAME,
+          image: "",
+        },
+      ];
+      await createDriveFile(
+        token,
+        albumsRootId,
+        JSON.stringify(list),
+        ALBUMS_INDEX_FILE
+      );
+      await saveAlbumImagesToDrive(token, DEFAULT_ALBUM_NAME, []);
+    } else {
+      const data = await downloadDriveFile(token, albumsIndexId);
+      list = Array.isArray(data) ? data : data?.albums || [];
+    }
+    if (!list.some((album) => album.name === DEFAULT_ALBUM_NAME)) {
+      list = [
+        ...list,
+        {
+          name: DEFAULT_ALBUM_NAME,
+          image: "",
+        },
+      ];
+      await syncAlbumsIndexToDrive(token, list);
+      await saveAlbumImagesToDrive(token, DEFAULT_ALBUM_NAME, []);
+    }
+
+    const hydrated = await Promise.all(
+      list.map(async (album) => {
+        const images = await loadAlbumImagesFromDrive(token, album.name);
+        return { ...album, images };
+      })
+    );
+    setAlbums(hydrated);
+    return hydrated;
+  };
+
+  const syncAlbumsIndexToDrive = async (token, list) => {
+    const rootFolderId = await getOrCreateDriveFolder(token);
+    const albumsRootId = await getOrCreateAlbumsRootId(token, rootFolderId);
+    const albumsIndexId = await getDriveFileId(
+      token,
+      albumsRootId,
+      ALBUMS_INDEX_FILE
+    );
+    const payload = JSON.stringify(list);
+    if (albumsIndexId) {
+      await updateDriveFile(token, albumsIndexId, payload);
+    } else {
+      await createDriveFile(token, albumsRootId, payload, ALBUMS_INDEX_FILE);
+    }
+  };
+
+  const loadAlbumImagesFromDrive = async (token, albumName) => {
+    const rootFolderId = await getDriveFolderId(token);
+    if (!rootFolderId) {
+      return [];
+    }
+    const albumsRootId = await getAlbumsRootId(token, rootFolderId);
+    if (!albumsRootId) {
+      return [];
+    }
+    const albumFolderId = await getAlbumFolderId(
+      token,
+      albumsRootId,
+      albumName
+    );
+    if (!albumFolderId) {
+      return [];
+    }
+    const imagesFileId = await getDriveFileId(
+      token,
+      albumFolderId,
+      ALBUM_IMAGES_FILE
+    );
+    if (!imagesFileId) {
+      return [];
+    }
+    const data = await downloadDriveFile(token, imagesFileId);
+    return Array.isArray(data) ? data : data?.images || [];
+  };
+
+  const saveAlbumImagesToDrive = async (token, albumName, images) => {
+    const rootFolderId = await getOrCreateDriveFolder(token);
+    const albumsRootId = await getOrCreateAlbumsRootId(token, rootFolderId);
+    const albumFolderId = await getOrCreateAlbumFolderId(
+      token,
+      albumsRootId,
+      albumName
+    );
+    const imagesFileId = await getDriveFileId(
+      token,
+      albumFolderId,
+      ALBUM_IMAGES_FILE
+    );
+    const payload = JSON.stringify(images);
+    if (imagesFileId) {
+      await updateDriveFile(token, imagesFileId, payload);
+    } else {
+      await createDriveFile(token, albumFolderId, payload, ALBUM_IMAGES_FILE);
+    }
+  };
+
   const ensureDriveReady = async ({ promptMode = "none" } = {}) => {
     const token = await ensureAccessToken({ promptMode });
     let loadedCollections = collections;
     if (!collectionsLoadedRef.current) {
       loadedCollections = await loadCollectionsFromDrive(token);
       collectionsLoadedRef.current = true;
+    }
+    if (!albumsLoadedRef.current) {
+      await loadAlbumsFromDrive(token);
+      albumsLoadedRef.current = true;
     }
     return { token, collections: loadedCollections };
   };
@@ -848,11 +1129,10 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
 
   const handleSelectCollection = async (collection) => {
     const query = collection.query || "";
-    if (activeCollection && activeCollection.name !== collection.name) {
-      await syncStateToDrive();
-    }
     setActiveCollection(collection);
     textUpdate(query);
+    setActiveAlbum(null);
+    setViewMode("carousel");
     setCollectionMenuOpen(null);
     try {
       const { token } = await ensureDriveReady({ promptMode: "none" });
@@ -883,184 +1163,789 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     }
   };
 
+  const openAlbumModal = () => {
+    setEditingAlbum(null);
+    setShowAlbumModal(true);
+  };
+
+  const closeAlbumModal = () => {
+    setShowAlbumModal(false);
+    setEditingAlbum(null);
+    setAlbumForm({ name: "", image: "" });
+  };
+
+  const handleCreateAlbum = async () => {
+    const trimmedName = albumForm.name.trim();
+    const trimmedImage = albumForm.image.trim();
+    if (!trimmedName) {
+      await swal({
+        title: "Please add an album name",
+      });
+      return;
+    }
+    const duplicate = albums.some((item) => {
+      if (
+        editingAlbum &&
+        item.name.trim().toLowerCase() ===
+          editingAlbum.name.trim().toLowerCase()
+      ) {
+        return false;
+      }
+      return item.name.trim().toLowerCase() === trimmedName.toLowerCase();
+    });
+    if (duplicate) {
+      await swal({
+        title: "Album name already exists",
+      });
+      return;
+    }
+
+    let nextAlbums = [];
+    let nextActive = activeAlbum;
+    if (editingAlbum) {
+      const updatedAlbum = {
+        ...editingAlbum,
+        name: trimmedName,
+        image: trimmedImage,
+      };
+      nextAlbums = albums.map((item) =>
+        item.name === editingAlbum.name ? updatedAlbum : item
+      );
+      setAlbums(nextAlbums);
+      if (activeAlbum?.name === editingAlbum.name) {
+        setActiveAlbum(updatedAlbum);
+        nextActive = updatedAlbum;
+      }
+      closeAlbumModal();
+    } else {
+      const newAlbum = {
+        name: trimmedName,
+        image: trimmedImage,
+        images: [],
+      };
+      nextAlbums = [...albums, newAlbum];
+      setAlbums(nextAlbums);
+      setActiveAlbum(newAlbum);
+      nextActive = newAlbum;
+      setViewMode("grid");
+      imagesUpdate([]);
+      closeAlbumModal();
+    }
+
+    try {
+      const token = await ensureAccessToken({ promptMode: "consent" });
+      await syncAlbumsIndexToDrive(token, nextAlbums);
+      await saveAlbumImagesToDrive(
+        token,
+        nextActive.name,
+        nextActive.images || []
+      );
+      albumsLoadedRef.current = true;
+    } catch (error) {
+      // ignore if not connected
+    }
+  };
+
+  const handleEditAlbum = (album) => {
+    setEditingAlbum(album);
+    setAlbumForm({
+      name: album.name || "",
+      image: album.image || "",
+    });
+    setShowAlbumModal(true);
+  };
+
+  const handleDeleteAlbum = async (album) => {
+    const confirmDelete = await swal({
+      title: "Delete album?",
+      text: `Are you sure you want to delete "${album.name}"?`,
+      buttons: ["Cancel", "Delete"],
+      dangerMode: true,
+    });
+    if (!confirmDelete) {
+      return;
+    }
+    const nextAlbums = albums.filter((item) => item.name !== album.name);
+    setAlbums(nextAlbums);
+    if (activeAlbum?.name === album.name) {
+      setActiveAlbum(null);
+    }
+    try {
+      const token = await ensureAccessToken({ promptMode: "none" });
+      const rootFolderId = await getDriveFolderId(token);
+      if (rootFolderId) {
+        const albumsRootId = await getAlbumsRootId(token, rootFolderId);
+        if (albumsRootId) {
+          await syncAlbumsIndexToDrive(token, nextAlbums);
+          const albumFolderId = await getAlbumFolderId(
+            token,
+            albumsRootId,
+            album.name
+          );
+          if (albumFolderId) {
+            await deleteDriveFile(token, albumFolderId);
+          }
+        }
+      }
+    } catch (error) {
+      await swal({
+        title: "Google Drive sync failed",
+        text: getDriveErrorMessage(error),
+      });
+    }
+  };
+
+  const handleSelectAlbum = async (album) => {
+    setActiveCollection(null);
+    setActiveAlbum(album);
+    setViewMode("grid");
+    slideToUpdate(0);
+    setAlbumsOpen(false);
+    loader(true);
+    setImageUrls([]);
+    imagesUpdate([]);
+    try {
+      if (!driveConnected) {
+        const localImages = album.images || [];
+        setImageUrls(localImages);
+        imagesUpdate(localImages);
+        loader(false);
+        return;
+      }
+      const token = await ensureAccessToken({ promptMode: "none" });
+      const hydratedAlbums = await loadAlbumsFromDrive(token);
+      const hydrated = hydratedAlbums.find((item) => item.name === album.name);
+      const resolvedImages = hydrated?.images || album.images || [];
+      const nextAlbums = albums.map((item) =>
+        item.name === album.name ? { ...item, images: resolvedImages } : item
+      );
+      setAlbums(nextAlbums);
+      setImageUrls(resolvedImages);
+      imagesUpdate(resolvedImages);
+      loader(false);
+    } catch (error) {
+      const localImages = album.images || [];
+      setImageUrls(localImages);
+      imagesUpdate(localImages);
+      loader(false);
+    }
+  };
+
+  const addImageToAlbum = async (slide, albumName) => {
+    const target = albums.find((item) => item.name === albumName);
+    if (!target) {
+      await swal({ title: "Album not found" });
+      return;
+    }
+    let images = target.images || [];
+    if (!target.images) {
+      try {
+        const token = await ensureAccessToken({ promptMode: "none" });
+        images = await loadAlbumImagesFromDrive(token, albumName);
+      } catch (error) {
+        images = [];
+      }
+    }
+    const exists = images.some((item) => item.url === slide.url);
+    if (!exists) {
+      images = [...images, { ...slide, id: slide.id || slide.url }];
+    }
+    const nextAlbums = albums.map((item) =>
+      item.name === albumName ? { ...item, images } : item
+    );
+    setAlbums(nextAlbums);
+    try {
+      const token = await ensureAccessToken({ promptMode: "none" });
+      await saveAlbumImagesToDrive(token, albumName, images);
+      await syncAlbumsIndexToDrive(token, nextAlbums);
+      showAlbumToast("Added to album");
+    } catch (error) {
+      showAlbumToast("Saved locally");
+    }
+  };
+
+  const removeImageFromActiveAlbum = async (slide) => {
+    if (!activeAlbum) {
+      await swal({ title: "No active album selected" });
+      return;
+    }
+    const confirmDelete = await swal({
+      title: "Remove image?",
+      text: "Remove this image from the album?",
+      buttons: ["Cancel", "Remove"],
+      dangerMode: true,
+    });
+    if (!confirmDelete) {
+      return;
+    }
+    const images = (activeAlbum.images || []).filter(
+      (item) => item.url !== slide.url
+    );
+    const nextAlbums = albums.map((item) =>
+      item.name === activeAlbum.name ? { ...item, images } : item
+    );
+    setAlbums(nextAlbums);
+    setActiveAlbum({ ...activeAlbum, images });
+    setImageUrls(images);
+    imagesUpdate(images);
+    try {
+      const token = await ensureAccessToken({ promptMode: "none" });
+      await saveAlbumImagesToDrive(token, activeAlbum.name, images);
+      await syncAlbumsIndexToDrive(token, nextAlbums);
+      showAlbumToast("Removed from album");
+    } catch (error) {
+      showAlbumToast("Saved locally");
+    }
+  };
+
+  useEffect(() => {
+    if (albumActionsRef) {
+      albumActionsRef.current = {
+        addImageToAlbum,
+        removeImageFromActiveAlbum,
+      };
+    }
+  }, [albums]);
+
+  const handleConnectDrive = async () => {
+    try {
+      const { token } = await ensureDriveReady({ promptMode: "consent" });
+      await loadCollectionsFromDrive(token);
+      collectionsLoadedRef.current = true;
+      await loadAlbumsFromDrive(token);
+      albumsLoadedRef.current = true;
+      setDriveConnected(true);
+      await swal({ title: "Google Drive connected" });
+    } catch (error) {
+      await swal({
+        title: "Google sign-in required",
+        text: "Please sign in to Google in this browser, then try Connect again.",
+      });
+    }
+  };
+
   return (
-    <Section className={classes}>
-      <div
-        className={`collections_sidebar ${
-          collectionsOpen ? "collections_sidebar--open" : ""
+    <>
+      <button
+        type="button"
+        onClick={togglePanel}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-slate-700/70 bg-slate-950/80 px-4 py-2 text-xs uppercase tracking-[0.35em] text-emerald-300 shadow-[0_12px_40px_rgba(0,0,0,0.55)] transition hover:border-emerald-400/60"
+      >
+        {panelOpen ? "Close" : "Open"} panel
+      </button>
+      <button
+        type="button"
+        onClick={() => setAlbumsOpen((state) => !state)}
+        className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-full border border-slate-700/70 bg-slate-950/80 px-4 py-2 text-xs uppercase tracking-[0.35em] text-emerald-300 shadow-[0_12px_40px_rgba(0,0,0,0.55)] transition hover:border-emerald-400/60"
+      >
+        Albums
+      </button>
+
+      <section
+        className={`fixed inset-y-0 left-0 z-30 flex w-[360px] max-w-[92vw] flex-col overflow-hidden border-r border-slate-800/70 bg-slate-950/90 backdrop-blur transition-transform duration-300 ${
+          albumsOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="collections_sidebar__header">
-          <div className="collections_sidebar__title">Collections</div>
-          <div className="collections_sidebar__actions">
+        <div className="flex items-center justify-between border-b border-slate-800/70 px-5 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-emerald-300/70">
+              Albums
+            </p>
+            <h2 className="text-lg font-semibold">Your image albums</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAlbumsOpen(false)}
+            className="rounded-full border border-slate-700/70 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300"
+          >
+            Close
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <button
-              className="collections_sidebar__add"
-              onClick={openCollectionModal}
+              className="rounded-full border border-slate-700/70 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-slate-200"
+              onClick={openAlbumModal}
               type="button"
             >
-              + Add
+              Add
             </button>
             <button
-              className="collections_sidebar__save"
-              onClick={() => saveTolocalStorage()}
+              className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-emerald-200"
+              onClick={() => setViewMode("carousel")}
               type="button"
             >
-              Save
+              Carousel mode
             </button>
           </div>
-        </div>
-        <div className="collections_sidebar__list">
-          {collections.map((collection) => (
-            <div
-              key={collection.name}
-              className={`collections_sidebar__item ${
-                activeCollection?.name === collection.name
-                  ? "collections_sidebar__item--active"
-                  : ""
-              }`}
-            >
-              <button
-                className="collections_sidebar__item_btn"
-                onClick={() => handleSelectCollection(collection)}
-                type="button"
-              >
-                <img
-                  src={collection.image || "https://placehold.co/64x64"}
-                  alt={collection.name}
-                />
-                <span>{collection.name}</span>
-              </button>
-              <div className="collections_sidebar__menu">
-                <button
-                  className="collections_sidebar__menu_toggle"
-                  type="button"
-                  onClick={() =>
-                    setCollectionMenuOpen((state) =>
-                      state === collection.name ? null : collection.name
-                    )
-                  }
+          <div className="mt-5 space-y-3">
+            {albums.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-700/70 p-4 text-center text-xs text-slate-400">
+                No albums yet. Add one to get started.
+              </div>
+            ) : (
+              albums.map((album) => (
+                <div
+                  key={album.name}
+                  className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 transition ${
+                    activeAlbum?.name === album.name
+                      ? "border-emerald-400/60 bg-emerald-400/10"
+                      : "border-slate-800/70 bg-slate-950/40"
+                  }`}
                 >
-                  ...
-                </button>
-                {collectionMenuOpen === collection.name && (
-                  <div className="collections_sidebar__menu_dropdown">
+                  <button
+                    className="flex flex-1 items-center gap-3 text-left"
+                    onClick={() => handleSelectAlbum(album)}
+                    type="button"
+                  >
+                    <img
+                      src={album.image || "https://placehold.co/80x80"}
+                      alt={album.name}
+                      className="h-12 w-12 rounded-xl object-cover"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-100">
+                        {album.name}
+                      </p>
+                    </div>
+                  </button>
+                  <div className="relative">
                     <button
+                      className="rounded-full border border-slate-700/70 px-2 py-1 text-xs text-slate-200"
                       type="button"
-                      onClick={() => {
-                        setCollectionMenuOpen(null);
-                        handleEditCollection(collection);
-                      }}
+                      onClick={() =>
+                        setAlbumMenuOpen((state) =>
+                          state === album.name ? null : album.name
+                        )
+                      }
                     >
-                      Update
+                      More
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteCollection(collection)}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCollectionMenuOpen(null);
-                        handleClearCollectionState(collection);
-                      }}
-                    >
-                      Clear State
-                    </button>
+                    {albumMenuOpen === album.name && (
+                      <div className="absolute right-0 top-full z-10 mt-2 w-36 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 text-xs">
+                        <button
+                          type="button"
+                          className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
+                          onClick={() => {
+                            setAlbumMenuOpen(null);
+                            handleEditAlbum(album);
+                          }}
+                        >
+                          Update
+                        </button>
+                        <button
+                          type="button"
+                          className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
+                          onClick={() => handleDeleteAlbum(album)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section
+        className={`fixed inset-x-0 bottom-0 z-30 flex max-h-[85svh] flex-col overflow-hidden border-t border-slate-800/70 bg-slate-950/90 backdrop-blur transition-transform duration-300 lg:inset-y-0 lg:right-0 lg:left-auto lg:h-full lg:w-[420px] lg:border-l lg:border-t-0 ${
+          panelOpen
+            ? "translate-y-0 lg:translate-x-0"
+            : "translate-y-full lg:translate-x-full"
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-slate-800/70 px-5 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-emerald-300/70">
+              Control deck
+            </p>
+            <h2 className="text-lg font-semibold">Stack commands</h2>
+          </div>
+          <button
+            type="button"
+            onClick={togglePanel}
+            className="rounded-full border border-slate-700/70 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-6">
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                    Active stack
+                  </p>
+                  <p className="text-base font-semibold text-slate-100">
+                    {activeCollection?.name || activeAlbum?.name || "Unassigned"}
+                  </p>
+                </div>
+                <div className="text-right text-xs text-slate-400">
+                  <p>Stack #{count + 1}</p>
+                  <p>Slide {activeSlide + 1}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <span
+                  className={`rounded-full border px-3 py-1 uppercase tracking-[0.3em] ${
+                    driveConnected
+                      ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-200"
+                      : "border-slate-700/70 text-slate-400"
+                  }`}
+                >
+                  {driveConnected ? "Drive connected" : "Drive not connected"}
+                </span>
+                {!driveConnected && (
+                  <button
+                    type="button"
+                    onClick={handleConnectDrive}
+                    className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-emerald-200"
+                  >
+                    Connect
+                  </button>
                 )}
               </div>
+              <div className="mt-4">
+                <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                  Subreddit
+                </label>
+                <input
+                  className="mt-2 w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                  type="text"
+                  placeholder="cats+dogs+birds"
+                  value={text}
+                  onChange={(event) => textUpdate(event.target.value)}
+                />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => getImages()}
+                  className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-emerald-200 transition hover:bg-emerald-400/20"
+                >
+                  Load
+                </button>
+                <button
+                  type="button"
+                  onClick={restoreFromDrive}
+                  className="rounded-full border border-slate-700/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-200 transition hover:border-slate-500"
+                >
+                  Restore
+                </button>
+              </div>
             </div>
-          ))}
+
+            <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-100">
+                  Stack navigation
+                </p>
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                  {status.next ? "Ready" : "Idle"}
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  className="rounded-full border border-slate-700/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-200 transition hover:border-slate-500 disabled:opacity-40"
+                  disabled={count <= 0}
+                  onClick={() => getPreImages()}
+                  type="button"
+                >
+                  Previous
+                </button>
+                <button
+                  className="rounded-full border border-slate-700/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-200 transition hover:border-slate-500"
+                  onClick={() => getNextImages()}
+                  type="button"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-emerald-200 transition hover:bg-emerald-400/20"
+                  onClick={() => saveTolocalStorage()}
+                  type="button"
+                >
+                  Save
+                </button>
+                <button
+                  className="rounded-full border border-slate-700/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-200 transition hover:border-slate-500"
+                  type="button"
+                  onClick={() => syncStateToDrive({ promptMode: "consent" })}
+                >
+                  Sync
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setCollectionsOpen((state) => !state)}
+                  className="text-sm font-semibold text-slate-100"
+                >
+                  Collections
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="rounded-full border border-slate-700/70 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-slate-200"
+                    onClick={openCollectionModal}
+                    type="button"
+                  >
+                    Add
+                  </button>
+                  <button
+                    className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-emerald-200"
+                    onClick={() => saveTolocalStorage()}
+                    type="button"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+              {collectionsOpen && (
+                <div className="mt-4 space-y-3">
+                  {collections.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-700/70 p-4 text-center text-xs text-slate-400">
+                      No collections yet. Add one to get started.
+                    </div>
+                  ) : (
+                    collections.map((collection) => (
+                      <div
+                        key={collection.name}
+                        className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 transition ${
+                          activeCollection?.name === collection.name
+                            ? "border-emerald-400/60 bg-emerald-400/10"
+                            : "border-slate-800/70 bg-slate-950/40"
+                        }`}
+                      >
+                        <button
+                          className="flex flex-1 items-center gap-3 text-left"
+                          onClick={() => handleSelectCollection(collection)}
+                          type="button"
+                        >
+                          <img
+                            src={collection.image || "https://placehold.co/80x80"}
+                            alt={collection.name}
+                            className="h-12 w-12 rounded-xl object-cover"
+                          />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-100">
+                              {collection.name}
+                            </p>
+                          </div>
+                        </button>
+                        <div className="relative">
+                          <button
+                            className="rounded-full border border-slate-700/70 px-2 py-1 text-xs text-slate-200"
+                            type="button"
+                            onClick={() =>
+                              setCollectionMenuOpen((state) =>
+                                state === collection.name ? null : collection.name
+                              )
+                            }
+                          >
+                            More
+                          </button>
+                          {collectionMenuOpen === collection.name && (
+                            <div className="absolute right-0 top-full z-10 mt-2 w-36 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 text-xs">
+                              <button
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
+                                onClick={() => {
+                                  setCollectionMenuOpen(null);
+                                  handleEditCollection(collection);
+                                }}
+                              >
+                                Update
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
+                                onClick={() => handleDeleteCollection(collection)}
+                              >
+                                Delete
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
+                                onClick={() => {
+                                  setCollectionMenuOpen(null);
+                                  handleClearCollectionState(collection);
+                                }}
+                              >
+                                Clear State
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-      <Button
-        className={"previous_btn_panel"}
-        disabled={count <= 0}
-        onClick={() => getPreImages()}
-      >
-        previous stack
-      </Button>
-
-      <Button className={"next_btn_panel"} onClick={() => getNextImages()}>
-        next stack
-      </Button>
-
-      <OpenBtn onClick={() => viewPanel()}>
-        <span />
-        <span />
-        <span />
-      </OpenBtn>
-
-      <CloseBtn onClick={() => viewPanel()}>
-        <h3>&#10005;</h3>
-      </CloseBtn>
+      </section>
 
       {showSavedModal && (
-        <div className="saved_modal" role="status" aria-live="polite">
-          <div className="saved_modal__backdrop" />
-          <div className="saved_modal__content">Saved successfully</div>
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 backdrop-blur"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="rounded-2xl border border-emerald-400/40 bg-slate-950/90 px-6 py-4 text-sm uppercase tracking-[0.3em] text-emerald-200 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+            Saved successfully
+          </div>
+        </div>
+      )}
+
+      {albumToast && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 backdrop-blur"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="rounded-2xl border border-emerald-400/40 bg-slate-950/90 px-6 py-4 text-sm uppercase tracking-[0.3em] text-emerald-200 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+            {albumToast}
+          </div>
         </div>
       )}
 
       {showCollectionModal && (
-        <div className="collection_modal" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 grid place-items-center px-4" role="dialog" aria-modal="true">
           <div
-            className="collection_modal__backdrop"
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur"
             onClick={closeCollectionModal}
             role="presentation"
           />
-          <div className="collection_modal__content">
-            <h3>{editingCollection ? "Update Collection" : "Create Collection"}</h3>
-            <input
-              className="input"
-              type="text"
-              placeholder="Collection name"
-              value={collectionForm.name}
-              onChange={(event) =>
-                setCollectionForm((prev) => ({
-                  ...prev,
-                  name: event.target.value,
-                }))
-              }
-            />
-            <input
-              className="input"
-              type="text"
-              placeholder="Image URL"
-              value={collectionForm.image}
-              onChange={(event) =>
-                setCollectionForm((prev) => ({
-                  ...prev,
-                  image: event.target.value,
-                }))
-              }
-            />
-            <input
-              className="input"
-              type="text"
-              placeholder="Collection string (cats+dogs+birds)"
-              value={collectionForm.query}
-              onChange={(event) =>
-                setCollectionForm((prev) => ({
-                  ...prev,
-                  query: event.target.value,
-                }))
-              }
-            />
-            <div className="collection_modal__actions">
-              <Button type="button" onClick={handleCreateCollection}>
+          <div className="relative w-full max-w-md rounded-3xl border border-slate-800/70 bg-slate-950/95 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
+            <h3 className="text-lg font-semibold text-slate-100">
+              {editingCollection ? "Update Collection" : "Create Collection"}
+            </h3>
+            <div className="mt-4 space-y-3">
+              <input
+                className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                type="text"
+                placeholder="Collection name"
+                value={collectionForm.name}
+                onChange={(event) =>
+                  setCollectionForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
+                }
+              />
+              <input
+                className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                type="text"
+                placeholder="Image URL"
+                value={collectionForm.image}
+                onChange={(event) =>
+                  setCollectionForm((prev) => ({
+                    ...prev,
+                    image: event.target.value,
+                  }))
+                }
+              />
+              <input
+                className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                type="text"
+                placeholder="Collection string (cats+dogs+birds)"
+                value={collectionForm.query}
+                onChange={(event) =>
+                  setCollectionForm((prev) => ({
+                    ...prev,
+                    query: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCreateCollection}
+                className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-5 py-2 text-xs uppercase tracking-[0.3em] text-emerald-200"
+              >
                 {editingCollection ? "Update" : "Create"}
-              </Button>
-              <Button type="button" onClick={closeCollectionModal}>
+              </button>
+              <button
+                type="button"
+                onClick={closeCollectionModal}
+                className="rounded-full border border-slate-700/70 px-5 py-2 text-xs uppercase tracking-[0.3em] text-slate-200"
+              >
                 Cancel
-              </Button>
+              </button>
             </div>
           </div>
         </div>
       )}
-    </Section>
+
+      {showAlbumModal && (
+        <div className="fixed inset-0 z-50 grid place-items-center px-4" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur"
+            onClick={closeAlbumModal}
+            role="presentation"
+          />
+          <div className="relative w-full max-w-md rounded-3xl border border-slate-800/70 bg-slate-950/95 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
+            <h3 className="text-lg font-semibold text-slate-100">
+              {editingAlbum ? "Update Album" : "Create Album"}
+            </h3>
+            <div className="mt-4 space-y-3">
+              <input
+                className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                type="text"
+                placeholder="Album name"
+                value={albumForm.name}
+                onChange={(event) =>
+                  setAlbumForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
+                }
+              />
+              <input
+                className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                type="text"
+                placeholder="Image URL"
+                value={albumForm.image}
+                onChange={(event) =>
+                  setAlbumForm((prev) => ({
+                    ...prev,
+                    image: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCreateAlbum}
+                className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-5 py-2 text-xs uppercase tracking-[0.3em] text-emerald-200"
+              >
+                {editingAlbum ? "Update" : "Create"}
+              </button>
+              <button
+                type="button"
+                onClick={closeAlbumModal}
+                className="rounded-full border border-slate-700/70 px-5 py-2 text-xs uppercase tracking-[0.3em] text-slate-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
