@@ -1062,9 +1062,6 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
                             <p className="text-sm font-semibold text-slate-100">
                               {collection.name}
                             </p>
-                            <p className="text-xs text-slate-400">
-                              {collection.query}
-                            </p>
                           </div>
                         </button>
                         <div className="relative">
