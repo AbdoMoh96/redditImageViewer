@@ -14,9 +14,7 @@ const Layout = (props) => {
             <p className="text-xs uppercase tracking-[0.35em] text-emerald-300/70">
               Reddit Image Viewer
             </p>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight">
-              Infinite visual stacks for any subreddit
-            </h1>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight" />
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-slate-400 font-[var(--font-jetbrains-mono)]">
             <span className="rounded-full border border-slate-700/70 px-3 py-1">← / → Navigate</span>

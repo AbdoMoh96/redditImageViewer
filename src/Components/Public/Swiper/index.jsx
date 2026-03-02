@@ -32,7 +32,7 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
   };
 
   return (
-    <div className="h-[calc(100svh-110px)] sm:h-[calc(100svh-120px)] px-4 sm:px-6 lg:px-10 pb-8">
+      <div className="h-[calc(100svh-110px)] sm:h-[calc(100svh-120px)] px-8 sm:px-10 lg:px-16 pb-14 sm:pb-16">
       <div className="h-full rounded-[32px] border border-slate-800/70 bg-slate-950/70 backdrop-blur">
         <Swiper
           modules={[Navigation, Pagination, Virtual]}
@@ -94,7 +94,7 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
                       {titleText}
                     </h2>
                   )}
-                  <div className="relative flex w-full max-w-5xl items-center justify-center px-2 sm:px-4">
+                  <div className="relative flex w-full items-center justify-center px-2 sm:px-4">
                     {!isLoaded && (
                       <div className="absolute inset-0 grid place-items-center rounded-3xl bg-slate-900/70 text-xs uppercase tracking-[0.35em] text-emerald-300">
                         Loading image
@@ -102,7 +102,7 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
                     )}
                     <img
                       src={slide.url}
-                      className={`max-h-[68vh] w-full rounded-3xl object-contain shadow-[0_25px_80px_rgba(0,0,0,0.55)] transition-opacity duration-300 ${
+                      className={`max-h-[60vh] sm:max-h-[68vh] lg:max-h-[72vh] max-w-[85vw] lg:max-w-[78vw] h-auto w-auto rounded-3xl object-contain shadow-[0_25px_80px_rgba(0,0,0,0.55)] transition-opacity duration-300 ${
                         !isLoaded ? "opacity-0" : "opacity-100"
                       } ${showSlide ? "opacity-0" : ""}`}
                       loading="lazy"
