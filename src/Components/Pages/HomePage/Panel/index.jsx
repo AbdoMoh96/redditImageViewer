@@ -214,19 +214,11 @@ const Panel = ({
     };
     const nextAlbums = [...albums, defaultAlbum];
     setAlbums(nextAlbums);
-    try {
-      const token = await ensureAccessToken({ promptMode: "none" });
-      await syncAlbumsIndexToDrive(token, nextAlbums);
-      await saveAlbumImagesToDrive(token, DEFAULT_ALBUM_NAME, []);
-      albumsLoadedRef.current = true;
-    } catch (error) {
-      // ignore if not connected
-    }
   };
 
   useEffect(() => {
     ensureDefaultAlbum();
-  }, [albums]);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -734,29 +726,52 @@ const Panel = ({
   };
 
   const loadAlbumsFromDrive = async (token) => {
-    const rootFolderId = await getDriveFolderId(token);
-    if (!rootFolderId) {
-      setAlbums([]);
-      return [];
-    }
-    const albumsRootId = await getAlbumsRootId(token, rootFolderId);
-    if (!albumsRootId) {
-      setAlbums([]);
-      return [];
-    }
-    const albumsIndexId = await getDriveFileId(
+    const rootFolderId = await getOrCreateDriveFolder(token);
+    const albumsRootId = await getOrCreateAlbumsRootId(token, rootFolderId);
+    let albumsIndexId = await getDriveFileId(
       token,
       albumsRootId,
       ALBUMS_INDEX_FILE
     );
+    let list = [];
     if (!albumsIndexId) {
-      setAlbums([]);
-      return [];
+      list = [
+        {
+          name: DEFAULT_ALBUM_NAME,
+          image: "",
+        },
+      ];
+      await createDriveFile(
+        token,
+        albumsRootId,
+        JSON.stringify(list),
+        ALBUMS_INDEX_FILE
+      );
+      await saveAlbumImagesToDrive(token, DEFAULT_ALBUM_NAME, []);
+    } else {
+      const data = await downloadDriveFile(token, albumsIndexId);
+      list = Array.isArray(data) ? data : data?.albums || [];
     }
-    const data = await downloadDriveFile(token, albumsIndexId);
-    const list = Array.isArray(data) ? data : data?.albums || [];
-    setAlbums(list);
-    return list;
+    if (!list.some((album) => album.name === DEFAULT_ALBUM_NAME)) {
+      list = [
+        ...list,
+        {
+          name: DEFAULT_ALBUM_NAME,
+          image: "",
+        },
+      ];
+      await syncAlbumsIndexToDrive(token, list);
+      await saveAlbumImagesToDrive(token, DEFAULT_ALBUM_NAME, []);
+    }
+
+    const hydrated = await Promise.all(
+      list.map(async (album) => {
+        const images = await loadAlbumImagesFromDrive(token, album.name);
+        return { ...album, images };
+      })
+    );
+    setAlbums(hydrated);
+    return hydrated;
   };
 
   const syncAlbumsIndexToDrive = async (token, list) => {
@@ -1087,9 +1102,6 @@ const Panel = ({
 
   const handleSelectCollection = async (collection) => {
     const query = collection.query || "";
-    if (activeCollection && activeCollection.name !== collection.name) {
-      await syncStateToDrive();
-    }
     setActiveCollection(collection);
     textUpdate(query);
     setActiveAlbum(null);
@@ -1196,7 +1208,11 @@ const Panel = ({
     try {
       const token = await ensureAccessToken({ promptMode: "consent" });
       await syncAlbumsIndexToDrive(token, nextAlbums);
-      await saveAlbumImagesToDrive(token, nextActive.name, nextActive.images || []);
+      await saveAlbumImagesToDrive(
+        token,
+        nextActive.name,
+        nextActive.images || []
+      );
       albumsLoadedRef.current = true;
     } catch (error) {
       // ignore if not connected
@@ -1253,26 +1269,38 @@ const Panel = ({
   };
 
   const handleSelectAlbum = async (album) => {
-    if (activeCollection) {
-      await syncStateToDrive();
-    }
     setActiveCollection(null);
     setActiveAlbum(album);
     setViewMode("grid");
     slideToUpdate(0);
     setAlbumsOpen(false);
+    loader(true);
+    setImageUrls([]);
+    imagesUpdate([]);
     try {
+      if (!driveConnected) {
+        const localImages = album.images || [];
+        setImageUrls(localImages);
+        imagesUpdate(localImages);
+        loader(false);
+        return;
+      }
       const token = await ensureAccessToken({ promptMode: "none" });
-      const albumImages = await loadAlbumImagesFromDrive(token, album.name);
+      const hydratedAlbums = await loadAlbumsFromDrive(token);
+      const hydrated = hydratedAlbums.find((item) => item.name === album.name);
+      const resolvedImages = hydrated?.images || album.images || [];
       const nextAlbums = albums.map((item) =>
-        item.name === album.name ? { ...item, images: albumImages } : item
+        item.name === album.name ? { ...item, images: resolvedImages } : item
       );
       setAlbums(nextAlbums);
-      setImageUrls(albumImages);
-      imagesUpdate(albumImages);
+      setImageUrls(resolvedImages);
+      imagesUpdate(resolvedImages);
+      loader(false);
     } catch (error) {
-      setImageUrls(album.images || []);
-      imagesUpdate(album.images || []);
+      const localImages = album.images || [];
+      setImageUrls(localImages);
+      imagesUpdate(localImages);
+      loader(false);
     }
   };
 
@@ -1307,6 +1335,7 @@ const Panel = ({
     try {
       const token = await ensureAccessToken({ promptMode: "none" });
       await saveAlbumImagesToDrive(token, albumName, images);
+      await syncAlbumsIndexToDrive(token, nextAlbums);
       await swal({ title: "Added to album" });
     } catch (error) {
       await swal({ title: "Saved locally", text: "Connect Drive to sync." });
@@ -1331,6 +1360,7 @@ const Panel = ({
     try {
       const token = await ensureAccessToken({ promptMode: "none" });
       await saveAlbumImagesToDrive(token, activeAlbum.name, images);
+      await syncAlbumsIndexToDrive(token, nextAlbums);
       await swal({ title: "Removed from album" });
     } catch (error) {
       await swal({ title: "Saved locally", text: "Connect Drive to sync." });
