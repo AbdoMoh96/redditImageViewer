@@ -36,7 +36,6 @@ const CustomSwiper = ({ slides, setActiveSlide, slideTo }) => {
       <div className="h-full rounded-[32px] border border-slate-800/70 bg-slate-950/70 backdrop-blur">
         <Swiper
           modules={[Navigation, Pagination, Virtual]}
-          preloadImages={false}
           virtual={{ addSlidesBefore: 1, addSlidesAfter: 1 }}
           navigation={true}
           spaceBetween={0}
