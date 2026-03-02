@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Section, OpenBtn, CloseBtn, Button } from "./StyledComponents/style";
 import axios from "axios";
 import swal from "sweetalert";
 import imagesGetter from "../../../../Helpers/imagesGetter";
 
 const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
-  const [classes, updateClasses] = useState("panelHide");
+  const [panelOpen, setPanelOpen] = useState(false);
   const [text, textUpdate] = useState("");
   const [imageUrls, setImageUrls] = useState([]);
   const [status, statusUpdate] = useState({
@@ -49,12 +48,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   const COLLECTIONS_FILE_NAME =
     process.env.NEXT_PUBLIC_GOOGLE_DRIVE_COLLECTIONS_FILE_NAME ||
     "collections.json";
-  const buildRedditUrl = ({
-    subreddit,
-    limit = 100,
-    after,
-    before,
-  }) => {
+
+  const buildRedditUrl = ({ subreddit, limit = 100, after, before }) => {
     const url = new URL(
       `/r/${encodeURIComponent(subreddit)}/new.json`,
       "https://old.reddit.com"
@@ -89,10 +84,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   });
 
   const saveTolocalStorage = async () => {
-    localStorage.setItem(
-      "state",
-      JSON.stringify(buildStatePayload())
-    );
+    localStorage.setItem("state", JSON.stringify(buildStatePayload()));
     setShowSavedModal(true);
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -171,6 +163,19 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return () => {};
+    }
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const handleChange = (event) => {
+      setPanelOpen(event.matches);
+    };
+    setPanelOpen(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
     if (!GOOGLE_CLIENT_ID) {
       return () => {};
@@ -209,14 +214,8 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     };
   }, [GOOGLE_CLIENT_ID, GOOGLE_GSI_SCRIPT, GOOGLE_OAUTH_SCOPES]);
 
-  const viewPanel = () => {
-    if (classes === "panelHide") {
-      updateClasses("panelShow");
-      setCollectionsOpen(true);
-    } else {
-      updateClasses("panelHide");
-      setCollectionsOpen(false);
-    }
+  const togglePanel = () => {
+    setPanelOpen((state) => !state);
   };
 
   const getImages = async (queryOverride) => {
@@ -884,183 +883,325 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
   };
 
   return (
-    <Section className={classes}>
-      <div
-        className={`collections_sidebar ${
-          collectionsOpen ? "collections_sidebar--open" : ""
+    <>
+      <button
+        type="button"
+        onClick={togglePanel}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-slate-700/70 bg-slate-950/80 px-4 py-2 text-xs uppercase tracking-[0.35em] text-emerald-300 shadow-[0_12px_40px_rgba(0,0,0,0.55)] transition hover:border-emerald-400/60"
+      >
+        {panelOpen ? "Close" : "Open"} panel
+      </button>
+
+      <section
+        className={`fixed inset-x-0 bottom-0 z-30 flex max-h-[85svh] flex-col overflow-hidden border-t border-slate-800/70 bg-slate-950/90 backdrop-blur transition-transform duration-300 lg:inset-y-0 lg:right-0 lg:left-auto lg:h-full lg:w-[420px] lg:border-l lg:border-t-0 ${
+          panelOpen
+            ? "translate-y-0 lg:translate-x-0"
+            : "translate-y-full lg:translate-x-full"
         }`}
       >
-        <div className="collections_sidebar__header">
-          <div className="collections_sidebar__title">Collections</div>
-          <div className="collections_sidebar__actions">
-            <button
-              className="collections_sidebar__add"
-              onClick={openCollectionModal}
-              type="button"
-            >
-              + Add
-            </button>
-            <button
-              className="collections_sidebar__save"
-              onClick={() => saveTolocalStorage()}
-              type="button"
-            >
-              Save
-            </button>
+        <div className="flex items-center justify-between border-b border-slate-800/70 px-5 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-emerald-300/70">
+              Control deck
+            </p>
+            <h2 className="text-lg font-semibold">Stack commands</h2>
           </div>
+          <button
+            type="button"
+            onClick={togglePanel}
+            className="rounded-full border border-slate-700/70 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-300"
+          >
+            Close
+          </button>
         </div>
-        <div className="collections_sidebar__list">
-          {collections.map((collection) => (
-            <div
-              key={collection.name}
-              className={`collections_sidebar__item ${
-                activeCollection?.name === collection.name
-                  ? "collections_sidebar__item--active"
-                  : ""
-              }`}
-            >
-              <button
-                className="collections_sidebar__item_btn"
-                onClick={() => handleSelectCollection(collection)}
-                type="button"
-              >
-                <img
-                  src={collection.image || "https://placehold.co/64x64"}
-                  alt={collection.name}
+
+        <div className="flex-1 overflow-y-auto px-5 py-6">
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                    Active stack
+                  </p>
+                  <p className="text-base font-semibold text-slate-100">
+                    {activeCollection?.name || "Unassigned"}
+                  </p>
+                </div>
+                <div className="text-right text-xs text-slate-400">
+                  <p>Stack #{count + 1}</p>
+                  <p>Slide {activeSlide + 1}</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                  Subreddit
+                </label>
+                <input
+                  className="mt-2 w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                  type="text"
+                  placeholder="cats+dogs+birds"
+                  value={text}
+                  onChange={(event) => textUpdate(event.target.value)}
                 />
-                <span>{collection.name}</span>
-              </button>
-              <div className="collections_sidebar__menu">
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
                 <button
-                  className="collections_sidebar__menu_toggle"
                   type="button"
-                  onClick={() =>
-                    setCollectionMenuOpen((state) =>
-                      state === collection.name ? null : collection.name
-                    )
-                  }
+                  onClick={() => getImages()}
+                  className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-emerald-200 transition hover:bg-emerald-400/20"
                 >
-                  ...
+                  Load
                 </button>
-                {collectionMenuOpen === collection.name && (
-                  <div className="collections_sidebar__menu_dropdown">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCollectionMenuOpen(null);
-                        handleEditCollection(collection);
-                      }}
-                    >
-                      Update
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteCollection(collection)}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCollectionMenuOpen(null);
-                        handleClearCollectionState(collection);
-                      }}
-                    >
-                      Clear State
-                    </button>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={restoreFromDrive}
+                  className="rounded-full border border-slate-700/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-200 transition hover:border-slate-500"
+                >
+                  Restore
+                </button>
               </div>
             </div>
-          ))}
+
+            <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-100">
+                  Stack navigation
+                </p>
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                  {status.next ? "Ready" : "Idle"}
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  className="rounded-full border border-slate-700/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-200 transition hover:border-slate-500 disabled:opacity-40"
+                  disabled={count <= 0}
+                  onClick={() => getPreImages()}
+                  type="button"
+                >
+                  Previous
+                </button>
+                <button
+                  className="rounded-full border border-slate-700/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-200 transition hover:border-slate-500"
+                  onClick={() => getNextImages()}
+                  type="button"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-emerald-200 transition hover:bg-emerald-400/20"
+                  onClick={() => saveTolocalStorage()}
+                  type="button"
+                >
+                  Save
+                </button>
+                <button
+                  className="rounded-full border border-slate-700/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-200 transition hover:border-slate-500"
+                  type="button"
+                  onClick={() => syncStateToDrive({ promptMode: "consent" })}
+                >
+                  Sync
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setCollectionsOpen((state) => !state)}
+                  className="text-sm font-semibold text-slate-100"
+                >
+                  Collections
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="rounded-full border border-slate-700/70 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-slate-200"
+                    onClick={openCollectionModal}
+                    type="button"
+                  >
+                    Add
+                  </button>
+                  <button
+                    className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-emerald-200"
+                    onClick={() => saveTolocalStorage()}
+                    type="button"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+              {collectionsOpen && (
+                <div className="mt-4 space-y-3">
+                  {collections.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-700/70 p-4 text-center text-xs text-slate-400">
+                      No collections yet. Add one to get started.
+                    </div>
+                  ) : (
+                    collections.map((collection) => (
+                      <div
+                        key={collection.name}
+                        className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 transition ${
+                          activeCollection?.name === collection.name
+                            ? "border-emerald-400/60 bg-emerald-400/10"
+                            : "border-slate-800/70 bg-slate-950/40"
+                        }`}
+                      >
+                        <button
+                          className="flex flex-1 items-center gap-3 text-left"
+                          onClick={() => handleSelectCollection(collection)}
+                          type="button"
+                        >
+                          <img
+                            src={collection.image || "https://placehold.co/80x80"}
+                            alt={collection.name}
+                            className="h-12 w-12 rounded-xl object-cover"
+                          />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-100">
+                              {collection.name}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {collection.query}
+                            </p>
+                          </div>
+                        </button>
+                        <div className="relative">
+                          <button
+                            className="rounded-full border border-slate-700/70 px-2 py-1 text-xs text-slate-200"
+                            type="button"
+                            onClick={() =>
+                              setCollectionMenuOpen((state) =>
+                                state === collection.name ? null : collection.name
+                              )
+                            }
+                          >
+                            More
+                          </button>
+                          {collectionMenuOpen === collection.name && (
+                            <div className="absolute right-0 top-full z-10 mt-2 w-36 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 text-xs">
+                              <button
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
+                                onClick={() => {
+                                  setCollectionMenuOpen(null);
+                                  handleEditCollection(collection);
+                                }}
+                              >
+                                Update
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
+                                onClick={() => handleDeleteCollection(collection)}
+                              >
+                                Delete
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
+                                onClick={() => {
+                                  setCollectionMenuOpen(null);
+                                  handleClearCollectionState(collection);
+                                }}
+                              >
+                                Clear State
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-      <Button
-        className={"previous_btn_panel"}
-        disabled={count <= 0}
-        onClick={() => getPreImages()}
-      >
-        previous stack
-      </Button>
-
-      <Button className={"next_btn_panel"} onClick={() => getNextImages()}>
-        next stack
-      </Button>
-
-      <OpenBtn onClick={() => viewPanel()}>
-        <span />
-        <span />
-        <span />
-      </OpenBtn>
-
-      <CloseBtn onClick={() => viewPanel()}>
-        <h3>&#10005;</h3>
-      </CloseBtn>
+      </section>
 
       {showSavedModal && (
-        <div className="saved_modal" role="status" aria-live="polite">
-          <div className="saved_modal__backdrop" />
-          <div className="saved_modal__content">Saved successfully</div>
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 backdrop-blur"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="rounded-2xl border border-emerald-400/40 bg-slate-950/90 px-6 py-4 text-sm uppercase tracking-[0.3em] text-emerald-200 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+            Saved successfully
+          </div>
         </div>
       )}
 
       {showCollectionModal && (
-        <div className="collection_modal" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 grid place-items-center px-4" role="dialog" aria-modal="true">
           <div
-            className="collection_modal__backdrop"
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur"
             onClick={closeCollectionModal}
             role="presentation"
           />
-          <div className="collection_modal__content">
-            <h3>{editingCollection ? "Update Collection" : "Create Collection"}</h3>
-            <input
-              className="input"
-              type="text"
-              placeholder="Collection name"
-              value={collectionForm.name}
-              onChange={(event) =>
-                setCollectionForm((prev) => ({
-                  ...prev,
-                  name: event.target.value,
-                }))
-              }
-            />
-            <input
-              className="input"
-              type="text"
-              placeholder="Image URL"
-              value={collectionForm.image}
-              onChange={(event) =>
-                setCollectionForm((prev) => ({
-                  ...prev,
-                  image: event.target.value,
-                }))
-              }
-            />
-            <input
-              className="input"
-              type="text"
-              placeholder="Collection string (cats+dogs+birds)"
-              value={collectionForm.query}
-              onChange={(event) =>
-                setCollectionForm((prev) => ({
-                  ...prev,
-                  query: event.target.value,
-                }))
-              }
-            />
-            <div className="collection_modal__actions">
-              <Button type="button" onClick={handleCreateCollection}>
+          <div className="relative w-full max-w-md rounded-3xl border border-slate-800/70 bg-slate-950/95 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
+            <h3 className="text-lg font-semibold text-slate-100">
+              {editingCollection ? "Update Collection" : "Create Collection"}
+            </h3>
+            <div className="mt-4 space-y-3">
+              <input
+                className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                type="text"
+                placeholder="Collection name"
+                value={collectionForm.name}
+                onChange={(event) =>
+                  setCollectionForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
+                }
+              />
+              <input
+                className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                type="text"
+                placeholder="Image URL"
+                value={collectionForm.image}
+                onChange={(event) =>
+                  setCollectionForm((prev) => ({
+                    ...prev,
+                    image: event.target.value,
+                  }))
+                }
+              />
+              <input
+                className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400/70 focus:outline-none"
+                type="text"
+                placeholder="Collection string (cats+dogs+birds)"
+                value={collectionForm.query}
+                onChange={(event) =>
+                  setCollectionForm((prev) => ({
+                    ...prev,
+                    query: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCreateCollection}
+                className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-5 py-2 text-xs uppercase tracking-[0.3em] text-emerald-200"
+              >
                 {editingCollection ? "Update" : "Create"}
-              </Button>
-              <Button type="button" onClick={closeCollectionModal}>
+              </button>
+              <button
+                type="button"
+                onClick={closeCollectionModal}
+                className="rounded-full border border-slate-700/70 px-5 py-2 text-xs uppercase tracking-[0.3em] text-slate-200"
+              >
                 Cancel
-              </Button>
+              </button>
             </div>
           </div>
         </div>
       )}
-    </Section>
+    </>
   );
 };
 
