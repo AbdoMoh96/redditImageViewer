@@ -298,6 +298,17 @@ const Panel = ({
     };
   }, [GOOGLE_CLIENT_ID, GOOGLE_GSI_SCRIPT, GOOGLE_OAUTH_SCOPES]);
 
+  useEffect(() => {
+    if (!driveConnected || albumsLoadedRef.current) {
+      return;
+    }
+    ensureDriveReady({ promptMode: "none" })
+      .then(() => {
+        albumsLoadedRef.current = true;
+      })
+      .catch(() => {});
+  }, [driveConnected]);
+
   const togglePanel = () => {
     setPanelOpen((state) => !state);
   };

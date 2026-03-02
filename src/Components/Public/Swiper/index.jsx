@@ -61,7 +61,12 @@ const CustomSwiper = ({
                 <div
                   key={slide.id || slide.url}
                   className="group relative cursor-pointer rounded-3xl border border-slate-800/70 bg-slate-900/40 p-3 transition hover:border-emerald-400/40"
-                  onClick={() => onEnterCarousel?.(index)}
+                  onClick={(event) => {
+                    if (event.target.closest("button")) {
+                      return;
+                    }
+                    onEnterCarousel?.(index);
+                  }}
                 >
                   <img
                     src={slide.url}
@@ -85,7 +90,6 @@ const CustomSwiper = ({
                           )
                         }
                         onMouseDown={(event) => event.stopPropagation()}
-                        onClickCapture={(event) => event.stopPropagation()}
                       >
                         Add
                       </button>
@@ -103,7 +107,6 @@ const CustomSwiper = ({
                                 className="w-full rounded-xl px-3 py-2 text-left text-slate-200 transition hover:bg-slate-800/60"
                                 onClick={() => handleAddToAlbum(slide, album.name)}
                                 onMouseDown={(event) => event.stopPropagation()}
-                                onClickCapture={(event) => event.stopPropagation()}
                               >
                                 {album.name}
                               </button>
@@ -119,7 +122,6 @@ const CustomSwiper = ({
                       className="mt-3 w-full rounded-full border border-rose-400/40 bg-rose-400/10 px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-rose-200"
                       onClick={() => handleAddToAlbum(slide, "__remove__")}
                       onMouseDown={(event) => event.stopPropagation()}
-                      onClickCapture={(event) => event.stopPropagation()}
                     >
                       Remove from album
                     </button>
