@@ -26,6 +26,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     image: "",
     query: "",
   });
+  const [driveConnected, setDriveConnected] = useState(false);
   const saveTimeoutRef = useRef(null);
   const tokenClientRef = useRef(null);
   const accessTokenRef = useRef(null);
@@ -193,6 +194,23 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
           scope: GOOGLE_OAUTH_SCOPES,
           callback: () => {},
         });
+        const cachedToken = localStorage.getItem("googleDriveToken");
+        const cachedExpiry = Number(
+          localStorage.getItem("googleDriveTokenExpiry") || 0
+        );
+        const hasValidCachedToken =
+          Boolean(cachedToken) && cachedExpiry && Date.now() < cachedExpiry;
+        if (hasValidCachedToken) {
+          accessTokenRef.current = cachedToken;
+          tokenExpiryRef.current = cachedExpiry;
+          setDriveConnected(true);
+          loadCollectionsFromDrive(cachedToken)
+            .then(() => {
+              collectionsLoadedRef.current = true;
+            })
+            .catch(() => {});
+          return;
+        }
         swal({
           title: "Connect Google Drive?",
           text: "Sign in to load your collections and saved states.",
@@ -205,6 +223,7 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
                 text: "Please sign in to Google in this browser, then try Connect again.",
               });
             });
+            setDriveConnected(true);
           }
         });
       })
@@ -388,6 +407,12 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     });
     if (!res.ok) {
       const errorText = await res.text();
+      if (res.status === 401 || res.status === 403) {
+        accessTokenRef.current = null;
+        tokenExpiryRef.current = 0;
+        localStorage.removeItem("googleDriveToken");
+        localStorage.removeItem("googleDriveTokenExpiry");
+      }
       throw new Error(errorText || `Drive request failed: ${res.status}`);
     }
     return res;
@@ -882,6 +907,21 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
     }
   };
 
+  const handleConnectDrive = async () => {
+    try {
+      const { token } = await ensureDriveReady({ promptMode: "consent" });
+      await loadCollectionsFromDrive(token);
+      collectionsLoadedRef.current = true;
+      setDriveConnected(true);
+      await swal({ title: "Google Drive connected" });
+    } catch (error) {
+      await swal({
+        title: "Google sign-in required",
+        text: "Please sign in to Google in this browser, then try Connect again.",
+      });
+    }
+  };
+
   return (
     <>
       <button
@@ -931,6 +971,26 @@ const Panel = ({ imagesUpdate, loader, activeSlide, slideToUpdate }) => {
                   <p>Stack #{count + 1}</p>
                   <p>Slide {activeSlide + 1}</p>
                 </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <span
+                  className={`rounded-full border px-3 py-1 uppercase tracking-[0.3em] ${
+                    driveConnected
+                      ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-200"
+                      : "border-slate-700/70 text-slate-400"
+                  }`}
+                >
+                  {driveConnected ? "Drive connected" : "Drive not connected"}
+                </span>
+                {!driveConnected && (
+                  <button
+                    type="button"
+                    onClick={handleConnectDrive}
+                    className="rounded-full border border-emerald-400/60 bg-emerald-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-emerald-200"
+                  >
+                    Connect
+                  </button>
+                )}
               </div>
               <div className="mt-4">
                 <label className="text-xs uppercase tracking-[0.3em] text-slate-400">
